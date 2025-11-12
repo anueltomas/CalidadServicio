@@ -1,0 +1,14 @@
+{
+    "controller": "controllers/record",
+    "views": {
+        "list": "reportes-calidad-servicio:views/principal",
+        "detail": "reportes-calidad-servicio:views/principal"
+    },
+    "recordViews": {
+        "list": "views/record/list"
+    },
+    "menu": {
+        "list": []
+    },
+    "checkForDuplicatesInQuickCreate": false
+}

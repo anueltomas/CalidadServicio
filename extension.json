@@ -1,0 +1,14 @@
+{
+    "module": "ReportesCalidadServicio",
+    "name": "ReportesCalidadServicio",
+    "description": "Permite visualizar los resultados de las diferentes encuestas acerca de la calidad del servicio prestado.",
+    "author": "Tomas Anuel",
+    "bundled": true,
+    "acceptableVersions": [
+        ">=9.1.0"
+    ],
+    "php": [
+        ">=8.2"
+    ],
+    "scripts": []
+}

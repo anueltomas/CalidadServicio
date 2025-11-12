@@ -1,0 +1,14 @@
+{
+    "routes": [
+        {
+            "route": "reportes-calidad-servicio",
+            "controller": "reporteCalidadServicio",
+            "action": "index"
+        },
+        {
+            "route": "reportes-calidad-servicio",
+            "controller": "reporteCalidadServicio",
+            "action": "reports"
+        }
+    ]
+}

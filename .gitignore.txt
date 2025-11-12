@@ -1,0 +1,49 @@
+# Directorio site/ completo
+/site/
+
+# Configuración sensible
+/data/config.php
+/data/config-internal.php
+/cache/*
+!/cache/.htaccess
+/logs/*
+!/logs/.htaccess
+
+# Archivos subidos por usuarios
+/data/upload/*
+!/data/upload/.htaccess
+
+# Backup de base de datos
+/data/backup/*
+
+# Archivos temporales
+/tmp/*
+!/tmp/.htaccess
+
+# Dependencias (si usas composer)
+/vendor/
+
+# IDE
+/.idea/
+/.vscode/
+*.swp
+*.swo
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs de aplicación
+*.log
+
+# Archivos de entorno
+.env
+.env.local
+.env.production
+
+# Backup de archivos
+*.backup
+*.bak
+
+# Archivos de usuario del sistema
+*.user.ini
