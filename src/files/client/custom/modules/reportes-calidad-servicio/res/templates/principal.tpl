@@ -82,7 +82,7 @@
         
         .filters-row-rcs {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr;
             gap: 20px;
         }
         
@@ -102,6 +102,12 @@
             border-radius: 8px;
             padding: 15px;
             border-left: 4px solid #3498db;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .info-card-rcs:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
         
         .info-card-rcs h3 {
@@ -157,6 +163,11 @@
             padding: 20px;
             box-shadow: 0 3px 10px rgba(0,0,0,0.08);
             border: 1px solid #e0e0e0;
+            transition: transform 0.3s ease;
+        }
+        
+        .chart-card-rcs:hover {
+            transform: translateY(-5px);
         }
         
         .chart-title-rcs {
@@ -204,6 +215,11 @@
         
         .percentage-item-rcs {
             text-align: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .percentage-item-rcs:hover {
+            transform: scale(1.1);
         }
         
         .percentage-value-rcs {
@@ -221,7 +237,7 @@
         .color-compra-rcs { background-color: #2ecc71; }
         .color-alquiler-rcs { background-color: #e74c3c; }
         
-        /* Gráfico circular con CSS */
+        /* Gráfico circular mejorado con CSS */
         .pie-chart-rcs {
             width: 200px;
             height: 200px;
@@ -232,6 +248,13 @@
                 #e74c3c 73% 100%
             );
             position: relative;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            animation: rotate-in 1s ease-out;
+        }
+        
+        @keyframes rotate-in {
+            from { transform: rotate(-180deg) scale(0.8); opacity: 0; }
+            to { transform: rotate(0) scale(1); opacity: 1; }
         }
         
         .pie-center-rcs {
@@ -247,6 +270,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         
         .pie-total-rcs {
@@ -260,14 +284,15 @@
             color: #7f8c8d;
         }
         
-        /* Gráfico de barras con CSS */
+        /* Gráfico de barras mejorado con separación */
         .bar-chart-rcs {
             display: flex;
             align-items: flex-end;
-            justify-content: space-around;
+            justify-content: space-between;
             height: 180px;
             padding: 0 20px;
             position: relative;
+            gap: 20px; /* Separación entre barras */
         }
         
         .bar-container-rcs {
@@ -275,29 +300,44 @@
             flex-direction: column;
             align-items: center;
             height: 100%;
+            flex: 1; /* Hace que cada barra ocupe el mismo espacio */
+            max-width: 80px; /* Ancho máximo para evitar que se expandan demasiado */
         }
         
         .bar-rcs {
-            width: 40px;
-            border-radius: 4px 4px 0 0;
+            width: 50px; /* Ancho ligeramente mayor para mejor visibilidad */
+            border-radius: 6px 6px 0 0;
             position: relative;
             transition: height 0.5s ease;
+            animation: grow-up 1s ease-out;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+            margin-bottom: 10px;
+        }
+        
+        @keyframes grow-up {
+            from { height: 0 !important; }
         }
         
         .bar-label-rcs {
             margin-top: 8px;
             font-size: 14px;
             font-weight: 600;
+            text-align: center;
         }
         
         .bar-value-rcs {
             position: absolute;
-            top: -25px;
+            top: -30px;
             left: 50%;
             transform: translateX(-50%);
             font-size: 14px;
             font-weight: bold;
             color: #2c3e50;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 4px 8px;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border: 1px solid #e0e0e0;
         }
         
         .bar-axis-rcs {
@@ -309,6 +349,40 @@
             background: #95a5a6;
         }
         
+        /* Indicadores de porcentaje mejorados */
+        .percentage-indicators-rcs {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding: 0 10px;
+        }
+        
+        .percentage-indicator-rcs {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        
+        .indicator-circle-rcs {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        }
+        
+        .indicator-label-rcs {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        /* Mejoras responsive */
         @media (max-width: 768px) {
             .filters-row-rcs {
                 grid-template-columns: 1fr;
@@ -331,6 +405,89 @@
                 width: 90px;
                 height: 90px;
             }
+            
+            .bar-chart-rcs {
+                height: 150px;
+                gap: 15px; /* Menor separación en móviles */
+            }
+            
+            .bar-rcs {
+                width: 40px; /* Barras más estrechas en móviles */
+            }
+            
+            .bar-value-rcs {
+                top: -25px;
+                font-size: 12px;
+                padding: 3px 6px;
+            }
+            
+            .percentage-display-rcs {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .percentage-indicators-rcs {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .percentage-indicator-rcs {
+                flex-direction: row;
+                justify-content: flex-start;
+                gap: 10px;
+            }
+            
+            .indicator-circle-rcs {
+                width: 40px;
+                height: 40px;
+                font-size: 14px;
+                margin-bottom: 0;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .header-rcs {
+                padding: 15px 20px;
+            }
+            
+            .h1-rcs {
+                font-size: 22px;
+            }
+            
+            .filters-section-rcs, .content-rcs {
+                padding: 15px 20px;
+            }
+            
+            .chart-card-rcs {
+                padding: 15px;
+            }
+            
+            .chart-title-rcs {
+                font-size: 16px;
+            }
+            
+            .operations-table-rcs th, .operations-table-rcs td {
+                padding: 8px 10px;
+                font-size: 14px;
+            }
+            
+            .percentage-value-rcs {
+                font-size: 20px;
+            }
+            
+            .bar-chart-rcs {
+                gap: 10px; /* Separación mínima en pantallas muy pequeñas */
+                padding: 0 10px;
+            }
+            
+            .bar-rcs {
+                width: 35px; /* Barras aún más estrechas */
+            }
+            
+            .bar-value-rcs {
+                font-size: 11px;
+                padding: 2px 4px;
+            }
         }
     </style>
 </head>
@@ -338,12 +495,11 @@
     <div class="container-rcs">
         <header class="header-rcs">
             <h1 class="h1-rcs">Información de Encuesta</h1>
-            <p class="subtitle-rcs">Resultados de calidad de servicio/p>
+            <p class="subtitle-rcs">Resultados de calidad de servicio</p>
         </header>
         
         <div class="filters-section-rcs">
             <div class="filters-row-rcs">
-                
                 <div class="filter-group-rcs">
                     <label for="cla">CLA</label>
                     <select id="cla" class="filter-select-rcs">
@@ -384,7 +540,7 @@
             <div class="info-grid-rcs">
                 <div class="info-card-rcs">
                     <h3>Total encuestados</h3>
-                    <p>{{totalEncuestados}}</p>
+                    <p>216</p>
                 </div>
                 <div class="info-card-rcs">
                     <h3>Fecha de Actualización</h3>
@@ -433,6 +589,21 @@
                 <div class="percentage-item-rcs">
                     <div class="percentage-value-rcs">27%</div>
                     <div class="percentage-label-rcs">Alquiler</div>
+                </div>
+            </div>
+            
+            <div class="percentage-indicators-rcs">
+                <div class="percentage-indicator-rcs">
+                    <div class="indicator-circle-rcs color-venta-rcs">44%</div>
+                    <div class="indicator-label-rcs">Venta</div>
+                </div>
+                <div class="percentage-indicator-rcs">
+                    <div class="indicator-circle-rcs color-compra-rcs">29%</div>
+                    <div class="indicator-label-rcs">Compra</div>
+                </div>
+                <div class="percentage-indicator-rcs">
+                    <div class="indicator-circle-rcs color-alquiler-rcs">27%</div>
+                    <div class="indicator-label-rcs">Alquiler</div>
                 </div>
             </div>
             
@@ -523,7 +694,6 @@
             // En una aplicación real, aquí se haría una llamada a una API
             // o se filtrarían los datos localmente según los selectores
             console.log("Filtros aplicados:");
-            console.log("Territorio:", document.getElementById('territorio').value);
             console.log("CLA:", document.getElementById('cla').value);
             console.log("Oficinas:", document.getElementById('oficinas').value);
             
@@ -537,7 +707,6 @@
             console.log("Página cargada correctamente");
             
             // Añadir event listeners a los selectores
-            document.getElementById('territorio').addEventListener('change', aplicarFiltros);
             document.getElementById('cla').addEventListener('change', aplicarFiltros);
             document.getElementById('oficinas').addEventListener('change', aplicarFiltros);
             

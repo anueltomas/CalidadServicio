@@ -1,0 +1,27 @@
+{
+  "controller": "controllers/record",
+  "iconClass": "fas fa-chart-line",
+  "color": "#3498db",
+  "menu": {
+    "list": [
+      {
+        "label": "Principal",
+        "link": "#ReportesCalidadServicio/principal",
+        "acl": "read",
+        "aclScope": "ReportesCalidadServicio",
+        "iconClass": "fas fa-home"
+      },
+      {
+        "label": "Lista",
+        "link": "#ReportesCalidadServicio",
+        "acl": "read",
+        "aclScope": "ReportesCalidadServicio",
+        "iconClass": "fas fa-list"
+      }
+    ]
+  },
+  "views": {
+    "list": "views/list",
+    "detail": "views/detail"
+  }
+}

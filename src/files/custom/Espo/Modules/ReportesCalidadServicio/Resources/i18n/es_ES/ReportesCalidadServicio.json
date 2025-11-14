@@ -1,0 +1,29 @@
+{
+  "labels": {
+    "ReportesCalidadServicio": "Reportes de Calidad",
+    "Create ReportesCalidadServicio": "Crear Encuesta",
+    "Importar Datos": "Importar Datos",
+    "Panel de Calidad de Servicio": "Panel de Calidad de Servicio",
+    "Total Encuestas": "Total Encuestas",
+    "Satisfacción Promedio": "Satisfacción Promedio",
+    "Recomendación": "Recomendación",
+    "Importar Datos de Calidad": "Importar Datos de Calidad",
+    "Principal": "Principal",
+    "Lista": "Lista"
+  },
+  "fields": {
+    "oficina": "Oficina",
+    "tipoOperacion": "Tipo de Operación",
+    "nombreAsesor": "Asesor",
+    "nombreCliente": "Cliente",
+    "recomendaria": "Recomendaría",
+    "percepcionGeneral": "Percepción General"
+  },
+  "messages": {
+    "Solo se permiten archivos CSV": "Solo se permiten archivos CSV",
+    "Error al leer el archivo": "Error al leer el archivo",
+    "Importando...": "Importando...",
+    "Error al cargar estadísticas": "Error al cargar estadísticas",
+    "Datos importados exitosamente": "Datos importados exitosamente"
+  }
+}
