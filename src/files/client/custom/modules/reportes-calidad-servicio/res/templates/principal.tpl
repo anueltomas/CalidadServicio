@@ -391,14 +391,10 @@
             border-bottom: 1px solid #e7eaec;
             padding-bottom: 15px;
             margin-bottom: 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
         }
         
         .page-header h3 {
-            margin: 0;
+            margin: 0 0 15px 0;
             color: #333;
             display: inline-block;
         }
@@ -408,91 +404,144 @@
             color: #3498db;
         }
         
+        .file-input-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+        }
+        
         .file-input-group {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin: 10px 0;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
         }
         
-        .file-input-container {
-            position: relative;
-            display: inline-block;
-            overflow: hidden;
-        }
-        
-        .file-input-container input[type="file"] {
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            width: 100%;
-            height: 100%;
-            cursor: pointer;
-        }
-        
-        .file-input-button {
-            display: inline-block;
-            padding: 8px 16px;
-            background-color: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            color: #495057;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .file-input-button:hover {
-            background-color: #e9ecef;
-            border-color: #adb5bd;
-        }
-        
-        .file-input-name {
-            margin-left: 10px;
-            font-size: 14px;
-            color: #6c757d;
-        }
-        
-        .btn {
-            display: inline-block;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
+        /* ESTILOS MEJORADOS PARA EL INPUT FILE */
+        .file-input-visible {
+            display: block;
+            padding: 12px 16px;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .file-input-visible:hover {
+            background: linear-gradient(135deg, #2980b9, #2573a7);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+        }
+        
+        .file-input-visible:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+        }
+        
+        .file-input-visible::before {
+            content: "📁 ";
+            margin-right: 8px;
+        }
+        
+        /* Ocultar el texto nativo del input file */
+        .file-input-visible::-webkit-file-upload-button {
+            visibility: hidden;
+        }
+        
+        .file-input-visible::file-selector-button {
+            visibility: hidden;
+        }
+        
+        .file-input-name {
+            padding: 12px 16px;
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #495057;
+            font-weight: 500;
+            min-width: 250px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .file-input-name.has-file {
+            color: #27ae60;
+            border-color: #27ae60;
+            background-color: #f8fff9;
+            box-shadow: 0 2px 8px rgba(39, 174, 96, 0.2);
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
             text-decoration: none;
             text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         
         .btn-primary {
-            background-color: #3498db;
+            background: linear-gradient(135deg, #3498db, #2980b9);
             color: white;
         }
         
         .btn-primary:hover {
-            background-color: #2980b9;
+            background: linear-gradient(135deg, #2980b9, #2573a7);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+        }
+        
+        .btn-primary:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
         }
         
         .btn-default {
-            background-color: #f8f9fa;
-            color: #495057;
-            border: 1px solid #ddd;
+            background: linear-gradient(135deg, #6c757d, #5a6268);
+            color: white;
+            border: none;
         }
         
         .btn-default:hover {
-            background-color: #e9ecef;
+            background: linear-gradient(135deg, #5a6268, #495057);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
         }
         
-        .btn-lg {
-            padding: 10px 20px;
-            font-size: 16px;
+        .btn-default:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(108, 117, 125, 0.3);
         }
         
         .text-right {
             text-align: right;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
         }
         
         .statistics-cards {
@@ -660,14 +709,31 @@
                 margin-bottom: 0;
             }
             
-            .page-header {
+            .file-input-group {
                 flex-direction: column;
-                align-items: flex-start;
+                align-items: stretch;
             }
             
-            .text-right {
-                text-align: left;
-                margin-top: 15px;
+            .file-input-visible {
+                width: 100%;
+                text-align: center;
+            }
+            
+            .file-input-name {
+                width: 100%;
+                min-width: auto;
+                text-align: center;
+            }
+            
+            .action-buttons {
+                justify-content: stretch;
+                flex-wrap: wrap;
+            }
+            
+            .btn {
+                flex: 1;
+                min-width: 140px;
+                justify-content: center;
             }
         }
         
@@ -725,7 +791,7 @@
         </header>
 
         <div class="calidad-servicio-principal">
-            <!-- Header con acciones -->
+            <!-- Header con título -->
             <div class="page-header">
                 <div>
                     <h3>
@@ -733,27 +799,29 @@
                         Panel de Calidad de Servicio
                     </h3>
                 </div>
+            </div>
+
+            <!-- Sección de selección de archivos debajo del título -->
+            <div class="file-input-section">
                 <div class="file-input-group">
-                    <div class="file-input-container">
-                        <input type="file" id="csv-file-input" accept=".csv" class="form-control">
-                        <button class="file-input-button">
-                            <span class="fas fa-folder-open"></span>
-                            Examinar
-                        </button>
-                    </div>
-                    <span id="file-name" class="file-input-name">No se ha seleccionado ningún archivo</span>
+                    <!-- INPUT FILE MEJORADO VISUALMENTE -->
+                    <input type="file" id="csv-file-input" accept=".csv" class="file-input-visible" title="Seleccionar archivo CSV">
+                    
                 </div>
-                <div class="text-right">
+                
+                <div class="action-buttons">
                     <button class="btn btn-primary" data-action="import">
                         <span class="fas fa-upload"></span>
                         Importar Datos
                     </button>
                     <button class="btn btn-default" data-action="refresh">
                         <span class="fas fa-sync-alt"></span>
+                        Actualizar
                     </button>
                 </div>
             </div>
 
+            <!-- El resto de tu contenido permanece igual -->
             <!-- Tarjetas de estadísticas -->
             <div class="row statistics-cards">
                 <div class="col-md-3">
@@ -909,6 +977,7 @@
             </div>
         </div>
         
+        <!-- El resto de tu HTML permanece igual -->
         <div class="filters-section-rcs">
             <div class="filters-row-rcs">
                 <div class="filter-group-rcs">
@@ -1092,28 +1161,7 @@
     </div>
 
     <script>
-        // Datos de la encuesta
-        const data = {
-            venta: 95,
-            compra: 63,
-            alquiler: 58,
-            total: 216
-        };
-        
-        // Función para simular el filtrado de datos
-        function aplicarFiltros() {
-            // En una aplicación real, aquí se haría una llamada a una API
-            // o se filtrarían los datos localmente según los selectores
-            console.log("Filtros aplicados:");
-            console.log("CLA:", document.getElementById('cla').value);
-            console.log("Oficinas:", document.getElementById('oficinas').value);
-            
-            // Simular cambio de datos (en una aplicación real, estos vendrían del servidor)
-            // Por ahora, solo mostramos un mensaje
-            alert("Filtros aplicados. En una implementación real, aquí se actualizarían los datos y gráficos.");
-        }
-        
-        // Función para manejar la selección de archivos
+        // Función para manejar la selección de archivos CORREGIDA
         function setupFileInput() {
             const fileInput = document.getElementById('csv-file-input');
             const fileName = document.getElementById('file-name');
@@ -1121,22 +1169,56 @@
             fileInput.addEventListener('change', function() {
                 if (this.files && this.files[0]) {
                     fileName.textContent = this.files[0].name;
+                    fileName.classList.add('has-file');
+                    console.log('Archivo seleccionado:', this.files[0].name);
                 } else {
                     fileName.textContent = 'No se ha seleccionado ningún archivo';
+                    fileName.classList.remove('has-file');
                 }
             });
+            
+            // También agregar evento al botón de importar para verificar archivo
+            const importButton = document.querySelector('[data-action="import"]');
+            if (importButton) {
+                importButton.addEventListener('click', function() {
+                    if (!fileInput.files || !fileInput.files[0]) {
+                        alert('Por favor, selecciona un archivo CSV antes de importar.');
+                        return;
+                    }
+                    
+                    const file = fileInput.files[0];
+                    console.log('Iniciando importación del archivo:', file.name);
+                    // Aquí llamarías a tu función de importación
+                    // iniciarProcesoDeCarga(file);
+                });
+            }
+        }
+        
+        // Función para simular el filtrado de datos
+        function aplicarFiltros() {
+            console.log("Filtros aplicados:");
+            console.log("CLA:", document.getElementById('cla').value);
+            console.log("Oficinas:", document.getElementById('oficinas').value);
         }
         
         // Inicializar event listeners cuando la página cargue
         document.addEventListener('DOMContentLoaded', function() {
             console.log("Página cargada correctamente");
             
+            // Configurar el input de archivo CORREGIDO
+            setupFileInput();
+            
             // Añadir event listeners a los selectores
             document.getElementById('cla').addEventListener('change', aplicarFiltros);
             document.getElementById('oficinas').addEventListener('change', aplicarFiltros);
             
-            // Configurar el input de archivo
-            setupFileInput();
+            // Botón de actualizar
+            const refreshButton = document.querySelector('[data-action="refresh"]');
+            if (refreshButton) {
+                refreshButton.addEventListener('click', function() {
+                    location.reload();
+                });
+            }
             
             console.log("Event listeners configurados correctamente");
         });

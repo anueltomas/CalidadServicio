@@ -306,23 +306,47 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
 
         guardarEncuestasEnBD: async function(encuestas) {
             try {
-                // Enviar en lotes para evitar timeout
-                const loteSize = 10;
-                for (let i = 0; i < encuestas.length; i += loteSize) {
-                    const lote = encuestas.slice(i, i + loteSize);
-                    
-                    await Espo.Ajax.postRequest('ReportesCalidadServicio/action/importarEncuestas', {
-                        encuestas: lote
-                    });
-                    
-                    Espo.Ui.notify(`Procesando... ${Math.min(i + loteSize, encuestas.length)}/${encuestas.length}`, 'info');
+                // Usar la ruta estándar sin routes.json
+                const result = await Espo.Ajax.postRequest('ReportesCalidadServicio/action/importarEncuestas', {
+                    encuestas: encuestas
+                });
+                
+                if (result.errores && result.errores.length > 0) {
+                    Espo.Ui.warning(`Se importaron ${result.importadas} de ${result.total} encuestas. Errores: ${result.errores.length}`);
                 }
                 
+                Espo.Ui.success(`Encuestas importadas exitosamente: ${result.importadas}/${result.total}`);
                 return true;
+                
             } catch (error) {
                 console.error('Error al guardar encuestas:', error);
-                throw new Error('Error al guardar en la base de datos');
+                
+                // Método de fallback
+                if (error.status === 404) {
+                    return await this.guardarEncuestasIndividualmente(encuestas);
+                }
+                
+                throw new Error('Error al guardar en la base de datos: ' + (error.message || 'Error desconocido'));
             }
+        },
+
+        loadStatistics: function () {
+            this.isLoading = true;
+            this.reRender();
+
+            Espo.Ajax.getRequest('ReportesCalidadServicio/action/getStats')
+            .then((response) => {
+                this.stats = response;
+                this.hasData = response.totalEncuestas > 0;
+                this.isLoading = false;
+                this.reRender();
+            })
+            .catch((xhr) => {
+                console.error('Error loading stats:', xhr);
+                Espo.Ui.error('Error al cargar estadísticas');
+                this.isLoading = false;
+                this.reRender();
+            });
         },
 
         renderCharts: function () {
