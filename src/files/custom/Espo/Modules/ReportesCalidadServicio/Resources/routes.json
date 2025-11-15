@@ -1,9 +1,1 @@
-[
-    {
-        "route": "/ReportesCalidadServicio/action/getStats",
-        "method": "GET",
-        "controller": "ReportesCalidadServicio",
-        "action": "getStats"
-    }
-]
-
+[]

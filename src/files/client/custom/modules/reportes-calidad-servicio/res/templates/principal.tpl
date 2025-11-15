@@ -382,6 +382,222 @@
             color: #7f8c8d;
         }
         
+        /* Estilos para la sección de calidad de servicio */
+        .calidad-servicio-principal {
+            padding: 20px;
+        }
+        
+        .page-header {
+            border-bottom: 1px solid #e7eaec;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .page-header h3 {
+            margin: 0;
+            color: #333;
+            display: inline-block;
+        }
+        
+        .page-header h3 .fas {
+            margin-right: 10px;
+            color: #3498db;
+        }
+        
+        .file-input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .file-input-container {
+            position: relative;
+            display: inline-block;
+            overflow: hidden;
+        }
+        
+        .file-input-container input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .file-input-button {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            color: #495057;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .file-input-button:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+        
+        .file-input-name {
+            margin-left: 10px;
+            font-size: 14px;
+            color: #6c757d;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        
+        .btn-default {
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #ddd;
+        }
+        
+        .btn-default:hover {
+            background-color: #e9ecef;
+        }
+        
+        .btn-lg {
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+        
+        .text-right {
+            text-align: right;
+        }
+        
+        .statistics-cards {
+            margin-bottom: 25px;
+        }
+        
+        .stat-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 20px;
+            border: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .stat-card .panel-body {
+            padding: 25px 15px;
+        }
+        
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 10px 0;
+            color: #333;
+        }
+        
+        .stat-label {
+            color: #777;
+            margin: 0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .stat-icon {
+            margin-bottom: 10px;
+            opacity: 0.7;
+        }
+        
+        .satisfaction-gauge {
+            margin-top: 15px;
+            padding: 0 20px;
+        }
+        
+        .gauge-background {
+            width: 100%;
+            height: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .gauge-fill {
+            height: 100%;
+            transition: width 1s ease-in-out, background-color 0.3s;
+            border-radius: 5px;
+        }
+        
+        .empty-state {
+            display: none; /* Ocultar el estado vacío */
+        }
+        
+        .panel-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .panel-title .fas {
+            margin-right: 8px;
+            color: #3498db;
+        }
+        
+        .table > thead > tr > th {
+            border-bottom: 2px solid #ddd;
+            font-weight: 600;
+            background-color: #f8f9fa;
+        }
+        
+        .table > tbody > tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .badge {
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .label {
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .badge-primary {
+            background-color: #3498db;
+        }
+        
+        .badge-warning {
+            background-color: #f39c12;
+        }
+        
         /* Mejoras responsive */
         @media (max-width: 768px) {
             .filters-row-rcs {
@@ -443,6 +659,16 @@
                 font-size: 14px;
                 margin-bottom: 0;
             }
+            
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .text-right {
+                text-align: left;
+                margin-top: 15px;
+            }
         }
         
         @media (max-width: 480px) {
@@ -497,6 +723,191 @@
             <h1 class="h1-rcs">Información de Encuesta</h1>
             <p class="subtitle-rcs">Resultados de calidad de servicio</p>
         </header>
+
+        <div class="calidad-servicio-principal">
+            <!-- Header con acciones -->
+            <div class="page-header">
+                <div>
+                    <h3>
+                        <span class="fas fa-chart-line"></span>
+                        Panel de Calidad de Servicio
+                    </h3>
+                </div>
+                <div class="file-input-group">
+                    <div class="file-input-container">
+                        <input type="file" id="csv-file-input" accept=".csv" class="form-control">
+                        <button class="file-input-button">
+                            <span class="fas fa-folder-open"></span>
+                            Examinar
+                        </button>
+                    </div>
+                    <span id="file-name" class="file-input-name">No se ha seleccionado ningún archivo</span>
+                </div>
+                <div class="text-right">
+                    <button class="btn btn-primary" data-action="import">
+                        <span class="fas fa-upload"></span>
+                        Importar Datos
+                    </button>
+                    <button class="btn btn-default" data-action="refresh">
+                        <span class="fas fa-sync-alt"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tarjetas de estadísticas -->
+            <div class="row statistics-cards">
+                <div class="col-md-3">
+                    <div class="panel panel-default stat-card">
+                        <div class="panel-body text-center">
+                            <div class="stat-icon">
+                                <span class="fas fa-clipboard-list fa-3x text-primary"></span>
+                            </div>
+                            <h2 class="stat-number">216</h2>
+                            <p class="stat-label">Total Encuestas</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="panel panel-default stat-card">
+                        <div class="panel-body text-center">
+                            <div class="stat-icon">
+                                <span class="fas fa-star fa-3x text-warning"></span>
+                            </div>
+                            <h2 class="stat-number">4.2</h2>
+                            <p class="stat-label">Satisfacción Promedio</p>
+                            <div class="satisfaction-gauge">
+                                <div class="gauge-background">
+                                    <div class="gauge-fill" style="width: 84%; background-color: #f39c12;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="panel panel-default stat-card">
+                        <div class="panel-body text-center">
+                            <div class="stat-icon">
+                                <span class="fas fa-thumbs-up fa-3x text-success"></span>
+                            </div>
+                            <h2 class="stat-number">78%</h2>
+                            <p class="stat-label">Recomendación</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="panel panel-default stat-card">
+                        <div class="panel-body text-center">
+                            <div class="stat-icon">
+                                <span class="fas fa-building fa-3x text-info"></span>
+                            </div>
+                            <h2 class="stat-number">3</h2>
+                            <p class="stat-label">Tipos de Operación</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de asesores destacados -->
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h4 class="panel-title">
+                                <span class="fas fa-users"></span>
+                                Asesores Destacados
+                            </h4>
+                        </div>
+                        <div class="panel-body">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Asesor</th>
+                                        <th class="text-center">Encuestas</th>
+                                        <th class="text-center">Calificación Promedio</th>
+                                        <th class="text-center">Nivel</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>María González</strong></td>
+                                        <td class="text-center">
+                                            <span class="badge badge-primary">42</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge badge-warning">
+                                                4.8/5
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="label label-success">Excelente</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Carlos Rodríguez</strong></td>
+                                        <td class="text-center">
+                                            <span class="badge badge-primary">38</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge badge-warning">
+                                                4.6/5
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="label label-success">Excelente</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Ana Martínez</strong></td>
+                                        <td class="text-center">
+                                            <span class="badge badge-primary">35</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge badge-warning">
+                                                4.5/5
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="label label-info">Muy Bueno</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>José López</strong></td>
+                                        <td class="text-center">
+                                            <span class="badge badge-primary">32</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge badge-warning">
+                                                4.3/5
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="label label-info">Muy Bueno</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Laura Sánchez</strong></td>
+                                        <td class="text-center">
+                                            <span class="badge badge-primary">28</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge badge-warning">
+                                                4.2/5
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="label label-warning">Bueno</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         
         <div class="filters-section-rcs">
             <div class="filters-row-rcs">
@@ -702,6 +1113,20 @@
             alert("Filtros aplicados. En una implementación real, aquí se actualizarían los datos y gráficos.");
         }
         
+        // Función para manejar la selección de archivos
+        function setupFileInput() {
+            const fileInput = document.getElementById('csv-file-input');
+            const fileName = document.getElementById('file-name');
+            
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    fileName.textContent = this.files[0].name;
+                } else {
+                    fileName.textContent = 'No se ha seleccionado ningún archivo';
+                }
+            });
+        }
+        
         // Inicializar event listeners cuando la página cargue
         document.addEventListener('DOMContentLoaded', function() {
             console.log("Página cargada correctamente");
@@ -709,6 +1134,9 @@
             // Añadir event listeners a los selectores
             document.getElementById('cla').addEventListener('change', aplicarFiltros);
             document.getElementById('oficinas').addEventListener('change', aplicarFiltros);
+            
+            // Configurar el input de archivo
+            setupFileInput();
             
             console.log("Event listeners configurados correctamente");
         });

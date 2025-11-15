@@ -1,0 +1,20 @@
+{
+  "routes": [
+    {
+      "route": "/ReportesCalidadServicio/action/:action",
+      "method": "post",
+      "params": {
+        "controller": "ReportesCalidadServicio",
+        "action": ":action"
+      }
+    },
+    {
+      "route": "/ReportesCalidadServicio/action/:action",
+      "method": "get",
+      "params": {
+        "controller": "ReportesCalidadServicio",
+        "action": ":action"
+      }
+    }
+  ]
+}

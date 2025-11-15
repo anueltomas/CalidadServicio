@@ -1,4 +1,4 @@
-define(['view'], function (View, $) {
+define('reportes-calidad-servicio:views/import-modal', ['view'], function (Dep) {
     
     return Dep.extend({
 
@@ -7,6 +7,16 @@ define(['view'], function (View, $) {
         className: 'dialog dialog-record',
 
         backdrop: true,
+
+        // AÑADE ESTOS EVENTOS
+        events: {
+            'click button[data-action="import"]': function () {
+                this.actionImport();
+            },
+            'click button[data-action="cancel"]': function () {
+                this.actionCancel();
+            }
+        },
 
         setup: function () {
             this.buttonList = [
@@ -18,7 +28,7 @@ define(['view'], function (View, $) {
                 },
                 {
                     name: 'cancel',
-                    label: 'Cancel'
+                    label: 'Cancelar'  // Cambié a español
                 }
             ];
 
@@ -45,6 +55,14 @@ define(['view'], function (View, $) {
             this.$progressBar = this.$el.find('.progress');
 
             this.$fileInput.on('change', this.handleFileSelect.bind(this));
+            
+            // OCULTAR LA BARRA DE PROGRESO INICIALMENTE
+            this.$progressBar.hide();
+        },
+
+        // AÑADE ESTE MÉTODO FALTANTE
+        actionCancel: function () {
+            this.close();
         },
 
         handleFileSelect: function (e) {
@@ -55,7 +73,7 @@ define(['view'], function (View, $) {
                 return;
             }
 
-            if (!file.name.endsWith('.csv')) {
+            if (!file.name.toLowerCase().endsWith('.csv')) {
                 Espo.Ui.error(this.translate('Solo se permiten archivos CSV', 'messages', 'ReportesCalidadServicio'));
                 this.clearFile();
                 return;
@@ -73,7 +91,7 @@ define(['view'], function (View, $) {
                 Espo.Ui.error(this.translate('Error al leer el archivo', 'messages', 'ReportesCalidadServicio'));
                 this.clearFile();
             };
-            reader.readAsText(file);
+            reader.readAsText(file, 'UTF-8'); // Añadí encoding
         },
 
         validateFile: function () {
@@ -102,8 +120,7 @@ define(['view'], function (View, $) {
                     this.disableButton('import');
                 }
                 
-                this.reRender();
-            }).catch(() => {
+            }).catch((xhr) => {
                 Espo.Ui.error(this.translate('Error al validar el archivo', 'messages', 'ReportesCalidadServicio'));
                 this.clearFile();
                 this.hideLoadingMessage();
@@ -117,7 +134,6 @@ define(['view'], function (View, $) {
             this.$fileInput.val('');
             this.$validationInfo.html('');
             this.disableButton('import');
-            this.reRender();
         },
 
         showLoadingMessage: function () {
@@ -134,6 +150,7 @@ define(['view'], function (View, $) {
 
         actionImport: function () {
             if (!this.fileContent) {
+                Espo.Ui.warning('Por favor, selecciona un archivo primero');
                 return;
             }
 
@@ -155,7 +172,8 @@ define(['view'], function (View, $) {
             }, 200);
 
             Espo.Ajax.postRequest('ReportesCalidadServicio/action/importCsv', {
-                fileContent: this.fileContent
+                fileContent: this.fileContent,
+                fileName: this.fileName
             }).then((response) => {
                 clearInterval(progressInterval);
                 this.$progressBar.find('.progress-bar').css('width', '100%');
@@ -170,19 +188,20 @@ define(['view'], function (View, $) {
                         message += '<br><strong>' + response.skipped + '</strong> registros omitidos';
                     }
 
-                    if (response.errors.length > 0) {
+                    if (response.errors && response.errors.length > 0) {
                         message += '<br><br><strong>Errores:</strong><ul>';
-                        response.errors.slice(0, 10).forEach(error => {
+                        response.errors.slice(0, 5).forEach(error => {
                             message += '<li>' + error + '</li>';
                         });
-                        if (response.errors.length > 10) {
-                            message += '<li>... y ' + (response.errors.length - 10) + ' más</li>';
+                        if (response.errors.length > 5) {
+                            message += '<li>... y ' + (response.errors.length - 5) + ' más</li>';
                         }
                         message += '</ul>';
                     }
 
                     Espo.Ui.success(message, {
-                        closeButton: true
+                        closeButton: true,
+                        timeout: 8000
                     });
 
                     this.trigger('imported', response);
