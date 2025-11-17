@@ -271,13 +271,29 @@ class ReportesCalidadServicio extends \Espo\Core\Controllers\Base
             
             // Mapear datos
             $datosMapeados = $this->mapearDatosEncuesta($datosEncuesta);
-            error_log("🗂️ Datos mapeados: " . print_r($datosMapeados, true));
+            
+            // DEBUG: Verificar qué datos se van a guardar
+            error_log("📤 DATOS A GUARDAR EN LA ENTIDAD:");
+            foreach ($datosMapeados as $campo => $valor) {
+                error_log("   - {$campo}: " . (is_string($valor) ? $valor : json_encode($valor)));
+            }
             
             // Establecer datos
             $reporte->set($datosMapeados);
             
+            // DEBUG: Verificar qué datos tiene la entidad antes de guardar
+            error_log("🔍 ENTIDAD ANTES DE GUARDAR:");
+            error_log("   - correo en entidad: " . ($reporte->get('correo') ?? 'NULL'));
+            error_log("   - nombreCliente en entidad: " . ($reporte->get('nombreCliente') ?? 'NULL'));
+            
             // Guardar en la base de datos
             $entityManager->saveEntity($reporte);
+            
+            // DEBUG: Verificar qué datos tiene la entidad después de guardar
+            error_log("🔍 ENTIDAD DESPUÉS DE GUARDAR:");
+            error_log("   - correo en entidad: " . ($reporte->get('correo') ?? 'NULL'));
+            error_log("   - nombreCliente en entidad: " . ($reporte->get('nombreCliente') ?? 'NULL'));
+            error_log("   - ID de entidad: " . ($reporte->get('id') ?? 'NO ASIGNADO'));
             
             error_log("🎉 ✅ Encuesta guardada exitosamente: " . ($datosEncuesta['nombreCliente'] ?? 'N/A'));
             return true;
@@ -287,6 +303,12 @@ class ReportesCalidadServicio extends \Espo\Core\Controllers\Base
             error_log("📝 Mensaje: " . $e->getMessage());
             error_log("📍 Archivo: " . $e->getFile() . ":" . $e->getLine());
             error_log("🔍 Stack trace: " . $e->getTraceAsString());
+            
+            // DEBUG adicional: verificar si hay errores de validación
+            if (strpos($e->getMessage(), 'validation') !== false) {
+                error_log("⚠️ Posible error de validación en los datos");
+            }
+            
             return false;
         }
     }
@@ -296,13 +318,16 @@ class ReportesCalidadServicio extends \Espo\Core\Controllers\Base
      */
     protected function mapearDatosEncuesta($datosEncuesta)
     {
+        error_log("🔍 === MAPEANDO DATOS ENCUESTA ===");
+        error_log("📋 Datos recibidos para mapeo: " . print_r($datosEncuesta, true));
+        
         // Convertir valores booleanos
         $recomendaria = false;
         $campoRecomendaria = $this->identificarCampo($datosEncuesta, ['recomendaria', 'Recomendaría', 'recomendaria', 'recomendar', 'Recomendaria']);
         if ($campoRecomendaria && isset($datosEncuesta[$campoRecomendaria])) {
             $valor = $datosEncuesta[$campoRecomendaria];
             $recomendaria = filter_var($valor, FILTER_VALIDATE_BOOLEAN) || 
-                           in_array(strtolower($valor), ['si', 'sí', 'yes', 'true', '1', 'verdadero']);
+                        in_array(strtolower($valor), ['si', 'sí', 'yes', 'true', '1', 'verdadero']);
         }
         
         // Convertir valores numéricos
@@ -313,39 +338,51 @@ class ReportesCalidadServicio extends \Espo\Core\Controllers\Base
             return null;
         };
         
-        // Identificar campos principales
-        $campoNombre = $this->identificarCampo($datosEncuesta, ['nombreCliente', 'Nombre del Cliente', 'nombre', 'Nombre', 'Cliente']);
-        $campoCorreo = $this->identificarCampo($datosEncuesta, ['correo', 'email', 'Correo', 'Email', 'Correo Electrónico']);
-        $campoTipoOperacion = $this->identificarCampo($datosEncuesta, ['tipoOperacion', 'Tipo de Operación', 'tipo_operacion', 'Operación', 'operacion']);
+        // DEBUG: Verificar específicamente el campo correo
+        error_log("📧 VERIFICACIÓN CAMPO CORREO:");
+        error_log("   - Campo 'correo' existe: " . (isset($datosEncuesta['correo']) ? 'SÍ' : 'NO'));
+        error_log("   - Valor de 'correo': " . ($datosEncuesta['correo'] ?? 'NULL'));
+        error_log("   - Campo 'email' existe: " . (isset($datosEncuesta['email']) ? 'SÍ' : 'NO'));
+        error_log("   - Valor de 'email': " . ($datosEncuesta['email'] ?? 'NULL'));
         
-        return [
-            'name' => $datosEncuesta[$campoNombre] ?? 'Encuesta ' . date('Y-m-d H:i:s'),
-            'cla' => $datosEncuesta['cla'] ?? $datosEncuesta['CLA'] ?? '',
-            'idOficina' => $convertirEntero($datosEncuesta['idOficina'] ?? $datosEncuesta['ID Oficina'] ?? null),
-            'oficina' => $datosEncuesta['oficina'] ?? $datosEncuesta['Oficina'] ?? '',
-            'marcaTemporal' => $datosEncuesta['marcaTemporal'] ?? $datosEncuesta['Marca Temporal'] ?? date('Y-m-d H:i:s'),
-            'correo' => $datosEncuesta[$campoCorreo] ?? '',
-            'tipoOperacion' => $datosEncuesta[$campoTipoOperacion] ?? 'Compra',
-            'idAsesor' => $convertirEntero($datosEncuesta['idAsesor'] ?? $datosEncuesta['ID Asesor'] ?? null),
-            'nombreAsesor' => $datosEncuesta['nombreAsesor'] ?? $datosEncuesta['Nombre Asesor'] ?? $datosEncuesta['Asesor'] ?? '',
-            'evaluacionGeneral' => $convertirEntero($datosEncuesta['evaluacionGeneral'] ?? $datosEncuesta['Evaluación General'] ?? null),
-            'asesoriaLegal' => $convertirEntero($datosEncuesta['asesoriaLegal'] ?? $datosEncuesta['Asesoría Legal'] ?? null),
-            'presentacionPersonal' => $convertirEntero($datosEncuesta['presentacionPersonal'] ?? $datosEncuesta['Presentación Personal'] ?? null),
-            'manejoDetalles' => $convertirEntero($datosEncuesta['manejoDetalles'] ?? $datosEncuesta['Manejo Detalles'] ?? null),
-            'puntualidad' => $convertirEntero($datosEncuesta['puntualidad'] ?? $datosEncuesta['Puntualidad'] ?? null),
-            'nivelCompromiso' => $convertirEntero($datosEncuesta['nivelCompromiso'] ?? $datosEncuesta['Nivel Compromiso'] ?? null),
-            'solucionProblemas' => $convertirEntero($datosEncuesta['solucionProblemas'] ?? $datosEncuesta['Solución Problemas'] ?? null),
-            'acompanamiento' => $convertirEntero($datosEncuesta['acompanamiento'] ?? $datosEncuesta['Acompañamiento'] ?? null),
-            'manejoImprevistas' => $convertirEntero($datosEncuesta['manejoImprevistas'] ?? $datosEncuesta['Manejo Imprevistas'] ?? null),
-            'manejoTiempos' => $convertirEntero($datosEncuesta['manejoTiempos'] ?? $datosEncuesta['Manejo Tiempos'] ?? null),
-            'percepcionGeneral' => $convertirEntero($datosEncuesta['percepcionGeneral'] ?? $datosEncuesta['Percepción General'] ?? null),
-            'calificacionOficina' => $convertirEntero($datosEncuesta['calificacionOficina'] ?? $datosEncuesta['Calificación Oficina'] ?? null),
+        // Mapeo directo - usar los nombres exactos que vienen del frontend
+        $datosMapeados = [
+            'name' => $datosEncuesta['nombreCliente'] ?? 'Encuesta ' . date('Y-m-d H:i:s'),
+            'cla' => $datosEncuesta['cla'] ?? '',
+            'idOficina' => $convertirEntero($datosEncuesta['idOficina'] ?? null),
+            'oficina' => $datosEncuesta['oficina'] ?? '',
+            'marcaTemporal' => $datosEncuesta['marcaTemporal'] ?? date('Y-m-d H:i:s'),
+            
+            // CORRECCIÓN: Asignación directa del campo correo
+            'correo' => $datosEncuesta['correo'] ?? $datosEncuesta['email'] ?? '',
+            
+            'tipoOperacion' => $datosEncuesta['tipoOperacion'] ?? 'Compra',
+            'idAsesor' => $convertirEntero($datosEncuesta['idAsesor'] ?? null),
+            'nombreAsesor' => $datosEncuesta['nombreAsesor'] ?? '',
+            'evaluacionGeneral' => $convertirEntero($datosEncuesta['evaluacionGeneral'] ?? null),
+            'asesoriaLegal' => $convertirEntero($datosEncuesta['asesoriaLegal'] ?? null),
+            'presentacionPersonal' => $convertirEntero($datosEncuesta['presentacionPersonal'] ?? null),
+            'manejoDetalles' => $convertirEntero($datosEncuesta['manejoDetalles'] ?? null),
+            'puntualidad' => $convertirEntero($datosEncuesta['puntualidad'] ?? null),
+            'nivelCompromiso' => $convertirEntero($datosEncuesta['nivelCompromiso'] ?? null),
+            'solucionProblemas' => $convertirEntero($datosEncuesta['solucionProblemas'] ?? null),
+            'acompanamiento' => $convertirEntero($datosEncuesta['acompanamiento'] ?? null),
+            'manejoImprevistas' => $convertirEntero($datosEncuesta['manejoImprevistas'] ?? null),
+            'manejoTiempos' => $convertirEntero($datosEncuesta['manejoTiempos'] ?? null),
+            'percepcionGeneral' => $convertirEntero($datosEncuesta['percepcionGeneral'] ?? null),
+            'calificacionOficina' => $convertirEntero($datosEncuesta['calificacionOficina'] ?? null),
             'recomendaria' => $recomendaria,
-            'medioContacto' => $datosEncuesta['medioContacto'] ?? $datosEncuesta['Medio Contacto'] ?? '',
-            'sugerencias' => $datosEncuesta['sugerencias'] ?? $datosEncuesta['Sugerencias'] ?? '',
-            'fechaCumpleanos' => $this->formatearFecha($datosEncuesta['fechaCumpleanos'] ?? $datosEncuesta['Fecha Cumpleaños'] ?? null),
-            'nombreCliente' => $datosEncuesta[$campoNombre] ?? ''
+            'medioContacto' => $datosEncuesta['medioContacto'] ?? '',
+            'sugerencias' => $datosEncuesta['sugerencias'] ?? '',
+            'fechaCumpleanos' => $this->formatearFecha($datosEncuesta['fechaCumpleanos'] ?? null),
+            'nombreCliente' => $datosEncuesta['nombreCliente'] ?? ''
         ];
+        
+        error_log("🗂️ Datos mapeados finales:");
+        error_log("   - correo en datos mapeados: " . ($datosMapeados['correo'] ?? 'NULL'));
+        error_log("   - nombreCliente en datos mapeados: " . ($datosMapeados['nombreCliente'] ?? 'NULL'));
+        
+        return $datosMapeados;
     }
     
     /**

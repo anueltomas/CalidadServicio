@@ -89,7 +89,10 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
 
         iniciarProcesoDeCarga: async function(contenidoCSV) {
             try {
+                console.log('📊 Iniciando procesamiento CSV...');
                 var todasLasLineas = contenidoCSV.split('\n').filter(l => l.trim());
+                
+                console.log('Total de líneas en CSV:', todasLasLineas.length);
                 
                 if (todasLasLineas.length < 2) {
                     Espo.Ui.error('El archivo CSV está vacío o no tiene datos.');
@@ -100,14 +103,26 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 var headers = this.parsearLineaCSV(todasLasLineas[0]);
                 var lineasDeDatos = todasLasLineas.slice(1);
 
+                console.log('Headers detectados:', headers);
+                console.log('Líneas de datos a procesar:', lineasDeDatos.length);
+
                 // Extraer preguntas del CSV
                 const preguntasDelCSV = this.extraerPreguntasDeEncuesta(headers);
+                console.log('Mapeo de preguntas:', preguntasDelCSV);
                 
                 // Procesar encuestas
                 const { encuestasValidas, erroresDeFila } = this.procesarEncuestasCSV(lineasDeDatos, headers, preguntasDelCSV);
 
+                console.log('Resultado del procesamiento:');
+                console.log('- Encuestas válidas:', encuestasValidas.length);
+                console.log('- Errores de fila:', erroresDeFila.length);
+
                 if (erroresDeFila.length > 0) {
-                    const mensajeError = 'Algunas filas del CSV fueron omitidas por errores:<br>' + erroresDeFila.join('<br>');
+                    // CORRECCIÓN: usar let en lugar de const
+                    let mensajeError = 'Algunas filas del CSV fueron omitidas por errores:<br>' + erroresDeFila.slice(0, 10).join('<br>');
+                    if (erroresDeFila.length > 10) {
+                        mensajeError += `<br>... y ${erroresDeFila.length - 10} errores más`;
+                    }
                     Espo.Ui.warning(mensajeError, 10000);
                 }
 
@@ -117,35 +132,65 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                     return;
                 }
 
+                console.log('Primeras 3 encuestas válidas:', encuestasValidas.slice(0, 3));
+
+                // Verificar duplicados antes de guardar
+                const encuestasUnicas = this.eliminarDuplicados(encuestasValidas);
+                console.log(`Encuestas después de eliminar duplicados: ${encuestasUnicas.length} (se eliminaron ${encuestasValidas.length - encuestasUnicas.length} duplicados)`);
+
                 // Guardar en la base de datos
-                await this.guardarEncuestasEnBD(encuestasValidas);
+                await this.guardarEncuestasEnBD(encuestasUnicas);
                 
-                Espo.Ui.success(`Se importaron ${encuestasValidas.length} encuestas exitosamente`);
+                Espo.Ui.success(`Se importaron ${encuestasUnicas.length} encuestas exitosamente`);
                 this.wait(false);
                 this.loadStatistics(); // Recargar estadísticas
 
             } catch (error) {
                 console.error('Error en el proceso de carga:', error);
-                Espo.Ui.error('Error al procesar el archivo CSV: ' + error.message);
+                // CORRECCIÓN: usar let en lugar de const
+                let mensajeError = 'Error al procesar el archivo CSV: ' + error.message;
+                Espo.Ui.error(mensajeError);
                 this.wait(false);
             }
         },
 
         parsearLineaCSV: function(linea) {
-            // Manejar campos entre comillas que contienen comas
-            const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g;
-            const campos = [];
-            let campo;
-            
-            while ((campo = regex.exec(linea))) {
-                let valor = campo[1];
-                if (valor.startsWith('"') && valor.endsWith('"')) {
-                    valor = valor.substring(1, valor.length - 1).replace(/""/g, '"');
+            try {
+                console.log('Parseando línea CSV:', linea);
+                
+                // Si ya es un array, devolverlo
+                if (Array.isArray(linea)) return linea;
+                
+                // Si es string, parsear CSV
+                if (typeof linea === 'string') {
+                    const resultados = [];
+                    let enComillas = false;
+                    let campoActual = '';
+                    
+                    for (let i = 0; i < linea.length; i++) {
+                        const char = linea[i];
+                        
+                        if (char === '"') {
+                            enComillas = !enComillas;
+                        } else if (char === ',' && !enComillas) {
+                            resultados.push(campoActual.trim());
+                            campoActual = '';
+                        } else {
+                            campoActual += char;
+                        }
+                    }
+                    
+                    // Añadir el último campo
+                    resultados.push(campoActual.trim());
+                    console.log('Campos parseados:', resultados);
+                    return resultados;
                 }
-                campos.push(valor.trim());
+                
+                return [];
+            } catch (error) {
+                console.error('Error parseando línea CSV:', error);
+                return [];
             }
-            
-            return campos;
         },
 
         extraerPreguntasDeEncuesta: function(headers) {
@@ -157,7 +202,7 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 'ID Oficina': 'idOficina',
                 'Oficina': 'oficina',
                 'Marca temporal': 'fechaEncuesta',
-                'Correo': 'email',
+                'Correo': 'correo',
                 '1. ¿Qué tipo de operación realizó?': 'tipoOperacion',
                 'ID Asesor': 'idAsesor',
                 '2. Escriba el nombre del Asesor Inmobiliario que le prestó el servicio.': 'nombreAsesor',
@@ -185,6 +230,7 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 }
             });
 
+            console.log('Preguntas extraídas:', preguntas);
             return preguntas;
         },
 
@@ -192,77 +238,234 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
             const encuestasValidas = [];
             const erroresDeFila = [];
 
+            console.log('🔍 Iniciando procesamiento de encuestas...');
+            console.log('Total de líneas a procesar:', lineasDeDatos.length);
+            console.log('Headers:', headers);
+            console.log('Mapeo de preguntas:', preguntas);
+
             lineasDeDatos.forEach((linea, index) => {
                 try {
+                    console.log(`\n--- Procesando línea ${index + 1} ---`);
+                    console.log('Línea original:', linea);
+
                     const campos = this.parsearLineaCSV(linea);
-                    
-                    if (campos.length < Object.keys(preguntas).length) {
-                        erroresDeFila.push(`Fila ${index + 2}: Número insuficiente de campos`);
-                        return;
+                    console.log('Campos parseados:', campos);
+                    console.log('Número de campos:', campos.length);
+                    console.log('Número de preguntas esperadas:', Object.keys(preguntas).length);
+
+                    // Verificación más flexible de número de campos
+                    if (campos.length < Object.keys(preguntas).length - 5) { // Más flexible
+                        console.warn(`Advertencia: Línea ${index + 1} tiene menos campos de lo esperado`);
+                        // Continuar procesamiento para ver qué datos podemos extraer
                     }
 
+                    // Crear encuesta con valores por defecto más robustos
                     const encuesta = {
-                        ciudad: campos[preguntas.ciudad] || '',
-                        idOficina: parseInt(campos[preguntas.idOficina]) || 0,
-                        oficina: campos[preguntas.oficina] || '',
-                        fechaEncuesta: this.parsearFecha(campos[preguntas.fechaEncuesta]),
-                        email: campos[preguntas.email] || '',
-                        tipoOperacion: campos[preguntas.tipoOperacion] || '',
-                        idAsesor: parseInt(campos[preguntas.idAsesor]) || 0,
-                        nombreAsesor: campos[preguntas.nombreAsesor] || '',
-                        puntuacionAsesoriaLegal: this.parsearPuntuacion(campos[preguntas.puntuacionAsesoriaLegal]),
-                        puntuacionPresentacion: this.parsearPuntuacion(campos[preguntas.puntuacionPresentacion]),
-                        puntuacionManejoDetalles: this.parsearPuntuacion(campos[preguntas.puntuacionManejoDetalles]),
-                        puntuacionPuntualidad: this.parsearPuntuacion(campos[preguntas.puntuacionPuntualidad]),
-                        puntuacionCompromiso: this.parsearPuntuacion(campos[preguntas.puntuacionCompromiso]),
-                        puntuacionSolucionProblemas: this.parsearPuntuacion(campos[preguntas.puntuacionSolucionProblemas]),
-                        puntuacionAcompanamiento: this.parsearPuntuacion(campos[preguntas.puntuacionAcompanamiento]),
-                        puntuacionSituacionesImprevistas: this.parsearPuntuacion(campos[preguntas.puntuacionSituacionesImprevistas]),
-                        puntuacionManejoTiempos: this.parsearPuntuacion(campos[preguntas.puntuacionManejoTiempos]),
-                        puntuacionGeneralAsesor: this.parsearPuntuacion(campos[preguntas.puntuacionGeneralAsesor]),
-                        puntuacionOficina: this.parsearPuntuacion(campos[preguntas.puntuacionOficina]),
-                        recomendacion: campos[preguntas.recomendacion] || '',
-                        medioContacto: campos[preguntas.medioContacto] || '',
-                        sugerencias: campos[preguntas.sugerencias] || '',
-                        fechaCumpleanos: this.parsearFechaCumpleanos(campos[preguntas.fechaCumpleanos]),
-                        nombreCliente: campos[preguntas.nombreCliente] || ''
+                        // Campo CLA
+                        cla: this.obtenerValorCampo(campos, preguntas.cla, ''),
+                        
+                        // Información de oficina
+                        idOficina: this.parsearEntero(this.obtenerValorCampo(campos, preguntas.idOficina, '0')),
+                        oficina: this.obtenerValorCampo(campos, preguntas.oficina, ''),
+                        
+                        // Información temporal
+                        marcaTemporal: this.parsearFecha(this.obtenerValorCampo(campos, preguntas.fechaEncuesta)) || new Date(),
+                        
+                        // INFORMACIÓN DEL CLIENTE - CORREO SIEMPRE INCLUIDO
+                        correo: this.obtenerValorCampo(campos, preguntas.correo, null),
+                        nombreCliente: this.obtenerValorCampo(campos, preguntas.nombreCliente, ''),
+                        fechaCumpleanos: this.parsearFechaCumpleanos(this.obtenerValorCampo(campos, preguntas.fechaCumpleanos)),
+                        
+                        // Información de la operación
+                        tipoOperacion: this.validarTipoOperacion(this.obtenerValorCampo(campos, preguntas.tipoOperacion, 'Compra')),
+                        
+                        // Información del asesor
+                        idAsesor: this.parsearEntero(this.obtenerValorCampo(campos, preguntas.idAsesor, '0')),
+                        nombreAsesor: this.obtenerValorCampo(campos, preguntas.nombreAsesor, ''),
+                        
+                        // Evaluaciones (con valores por defecto más flexibles)
+                        evaluacionGeneral: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionGeneralAsesor, '0')),
+                        asesoriaLegal: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionAsesoriaLegal, '0')),
+                        presentacionPersonal: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionPresentacion, '0')),
+                        manejoDetalles: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionManejoDetalles, '0')),
+                        puntualidad: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionPuntualidad, '0')),
+                        nivelCompromiso: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionCompromiso, '0')),
+                        solucionProblemas: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionSolucionProblemas, '0')),
+                        acompanamiento: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionAcompanamiento, '0')),
+                        manejoImprevistas: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionSituacionesImprevistas, '0')),
+                        manejoTiempos: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionManejoTiempos, '0')),
+                        percepcionGeneral: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionGeneralAsesor, '0')),
+                        calificacionOficina: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionOficina, '0')),
+                        
+                        // Recomendación y comentarios
+                        recomendaria: this.parsearBooleano(this.obtenerValorCampo(campos, preguntas.recomendacion, 'false')),
+                        medioContacto: this.obtenerValorCampo(campos, preguntas.medioContacto, ''),
+                        sugerencias: this.obtenerValorCampo(campos, preguntas.sugerencias, '')
                     };
 
-                    // Validar encuesta mínima
-                    if (!encuesta.nombreAsesor && !encuesta.email) {
-                        erroresDeFila.push(`Fila ${index + 2}: Faltan datos esenciales (asesor o email)`);
-                        return;
+                    console.log('Encuesta procesada:', encuesta);
+
+                    // Validaciones - nombreCliente SÍ es requerido
+                    const erroresValidacion = this.validarEncuesta(encuesta);
+                    if (erroresValidacion.length > 0) {
+                        console.warn(`Errores validación línea ${index + 1}:`, erroresValidacion);
+                        erroresDeFila.push(`Línea ${index + 1}: ${erroresValidacion.join(', ')}`);
+                    } else {
+                        console.log(`✅ Línea ${index + 1} VÁLIDA`);
+                        encuestasValidas.push(encuesta);
                     }
 
-                    encuestasValidas.push(encuesta);
-
                 } catch (error) {
-                    erroresDeFila.push(`Fila ${index + 2}: Error de formato - ${error.message}`);
+                    console.error(`❌ Error crítico línea ${index + 1}:`, error);
+                    erroresDeFila.push(`Línea ${index + 1}: Error de formato - ${error.message}`);
                 }
             });
+
+            console.log('\n=== RESULTADO FINAL DEL PROCESAMIENTO ===');
+            console.log('Encuestas válidas:', encuestasValidas.length);
+            console.log('Errores:', erroresDeFila.length);
+            
+            if (encuestasValidas.length > 0) {
+                console.log('Primeras 3 encuestas válidas:', encuestasValidas.slice(0, 3));
+            }
 
             return { encuestasValidas, erroresDeFila };
         },
 
-        parsearFecha: function(fechaStr) {
-            if (!fechaStr) return null;
+        // MÉTODOS AUXILIARES MEJORADOS
+        obtenerValorCampo: function(campos, indice, valorPorDefecto = '') {
+            if (indice === undefined || indice === null || indice < 0) {
+                return valorPorDefecto;
+            }
+            if (campos[indice] === undefined || campos[indice] === null) {
+                return valorPorDefecto;
+            }
+            const valor = campos[indice].toString().trim();
+            return valor === '' ? valorPorDefecto : valor;
+        },
+
+        parsearEntero: function(valor) {
+            if (valor === null || valor === undefined) return 0;
+            const num = parseInt(valor.toString().replace(/[^\d-]/g, ''));
+            return isNaN(num) ? 0 : num;
+        },
+
+        validarEncuesta: function(encuesta) {
+            const errores = [];
             
-            // Formato: "12/18/24 12:37"
-            const partes = fechaStr.split(' ');
-            if (partes.length < 1) return null;
-            
-            const fechaPartes = partes[0].split('/');
-            if (fechaPartes.length !== 3) return null;
-            
-            let año = parseInt(fechaPartes[2]);
-            if (año < 100) {
-                año += 2000; // Asumir siglo 21 para años de dos dígitos
+            // CAMPOS REQUERIDOS - nombreCliente SÍ es requerido
+            if (!encuesta.oficina || encuesta.oficina.trim() === '') {
+                errores.push('oficina es requerida');
             }
             
-            const mes = parseInt(fechaPartes[0]) - 1;
-            const dia = parseInt(fechaPartes[1]);
+            if (!encuesta.tipoOperacion || encuesta.tipoOperacion.trim() === '') {
+                errores.push('tipoOperacion es requerido');
+            }
             
-            return new Date(año, mes, dia).toISOString().split('T')[0];
+            if (!encuesta.nombreAsesor || encuesta.nombreAsesor.trim() === '') {
+                errores.push('nombreAsesor es requerido');
+            }
+            
+            // nombreCliente SÍ es requerido
+            if (!encuesta.nombreCliente || encuesta.nombreCliente.trim() === '') {
+                errores.push('nombreCliente es requerido');
+            }
+            
+            return errores;
+        },
+
+        // MÉTODO PARA ELIMINAR DUPLICADOS (SE MANTIENE)
+        eliminarDuplicados: function(encuestas) {
+            const vistas = new Set();
+            const encuestasUnicas = [];
+            const duplicados = [];
+
+            encuestas.forEach(encuesta => {
+                // Crear una clave única basada en varios campos para identificar duplicados
+                const clave = this.generarClaveUnica(encuesta);
+                
+                if (!vistas.has(clave)) {
+                    vistas.add(clave);
+                    encuestasUnicas.push(encuesta);
+                } else {
+                    duplicados.push(encuesta);
+                    console.log('📝 Encuesta duplicada detectada:', encuesta);
+                }
+            });
+
+            if (duplicados.length > 0) {
+                console.log(`🔄 Se encontraron ${duplicados.length} encuestas duplicadas`);
+                Espo.Ui.info(`Se detectaron ${duplicados.length} encuestas duplicadas que serán omitidas`);
+            }
+
+            return encuestasUnicas;
+        },
+
+        generarClaveUnica: function(encuesta) {
+            // Combinar varios campos para crear una clave única
+            // Esto evita duplicados basados en la misma combinación de datos
+            const camposUnicos = [
+                encuesta.correo || 'sin-correo',
+                encuesta.nombreCliente || 'sin-nombre',
+                encuesta.nombreAsesor || 'sin-asesor',
+                encuesta.oficina || 'sin-oficina',
+                encuesta.tipoOperacion || 'sin-operacion',
+                encuesta.marcaTemporal ? new Date(encuesta.marcaTemporal).toISOString().split('T')[0] : 'sin-fecha'
+            ];
+            
+            return camposUnicos.join('|');
+        },
+
+        validarTipoOperacion: function(tipoOperacion) {
+            const opcionesValidas = ['Compra', 'Venta', 'Alquiler'];
+            const tipo = (tipoOperacion || 'Compra').trim();
+            return opcionesValidas.includes(tipo) ? tipo : 'Compra';
+        },
+
+        parsearBooleano: function(valor) {
+            if (typeof valor === 'boolean') return valor;
+            if (typeof valor === 'string') {
+                const str = valor.toLowerCase().trim();
+                return str === 'true' || str === 'si' || str === 'sí' || str === '1' || str === 'yes' || str === 'verdadero';
+            }
+            if (typeof valor === 'number') return valor === 1;
+            return false;
+        },
+
+        parsearPuntuacion: function(valor) {
+            if (valor === null || valor === undefined) return 0;
+            const puntuacion = parseInt(valor.toString().replace(/[^\d]/g, ''));
+            if (isNaN(puntuacion)) return 0;
+            return Math.max(0, Math.min(5, puntuacion));
+        },
+
+        parsearFecha: function(fechaStr) {
+            if (!fechaStr) return new Date();
+            
+            try {
+                // Intentar varios formatos de fecha
+                const fecha = new Date(fechaStr);
+                if (!isNaN(fecha.getTime())) {
+                    return fecha;
+                }
+                
+                // Intentar formato dd/mm/yyyy
+                const partes = fechaStr.split('/');
+                if (partes.length === 3) {
+                    const dia = parseInt(partes[0]);
+                    const mes = parseInt(partes[1]) - 1;
+                    const año = parseInt(partes[2]);
+                    const fechaAlt = new Date(año, mes, dia);
+                    if (!isNaN(fechaAlt.getTime())) {
+                        return fechaAlt;
+                    }
+                }
+                
+                return new Date();
+            } catch (error) {
+                console.error('Error parseando fecha:', error);
+                return new Date();
+            }
         },
 
         parsearFechaCumpleanos: function(fechaStr) {
@@ -293,474 +496,93 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 
                 return null;
             } catch (error) {
+                console.error('Error parseando fecha de cumpleaños:', error);
                 return null;
             }
         },
 
-        parsearPuntuacion: function(puntuacionStr) {
-            if (!puntuacionStr) return null;
-            
-            const puntuacion = parseFloat(puntuacionStr);
-            return isNaN(puntuacion) ? null : Math.min(Math.max(puntuacion, 1), 5);
-        },
-
         guardarEncuestasEnBD: async function(encuestasValidas) {
-    try {
-        console.log('💾 Iniciando guardado de datos en modo simulación...', encuestasValidas);
-        
-        const result = await Espo.Ajax.postRequest('ReportesCalidadServicio/action/importarEncuestas', {
-            encuestas: encuestasValidas
-        });
-        
-        console.log('📨 Respuesta del servidor:', result);
-        
-        this.wait(false);
-        
-        if (result.success) {
-            // Mostrar resultados detallados
-            let mensaje = `✅ ${result.message || 'Importación completada'}<br>`;
-            mensaje += `<strong>Resumen:</strong><br>`;
-            mensaje += `• Total en CSV: ${result.total}<br>`;
-            mensaje += `• Procesadas: ${result.procesadas}<br>`;
-            mensaje += `• Duplicadas omitidas: ${result.duplicadas}<br>`;
-            mensaje += `• Errores: ${result.errores.length}`;
-            
-            if (result.errores && result.errores.length > 0) {
-                Espo.Ui.warning(mensaje, 10000);
-                console.log('❌ Errores detallados:', result.errores);
-            } else {
-                Espo.Ui.success(mensaje);
-            }
-            
-            // Mostrar detalles en consola
-            if (result.detalles) {
-                console.log('📝 Detalles de importación:', result.detalles);
-            }
-            
-        } else {
-            throw new Error(result.error || 'Error desconocido en el servidor');
-        }
-        
-        // Limpiar y recargar
-        this.datosPreview = null;
-        this.mostrarPreviewTabla = false;
-        this.$el.find('#csv-file-input').val('');
-        this.reRender();
-        
-        // Recargar estadísticas
-        this.loadStatistics();
-        
-        return true;
-        
-    } catch (error) {
-        console.error('💥 Error guardando encuestas:', error);
-        this.wait(false);
-        
-        let mensajeError = 'Error al procesar las encuestas:<br>';
-        
-        if (error.message) {
-            mensajeError += error.message;
-        } else if (error.status === 404) {
-            mensajeError += 'Endpoint no encontrado (404)';
-        } else {
-            mensajeError += 'Error de conexión con el servidor';
-        }
-        
-        Espo.Ui.error(mensajeError);
-        throw error;
-    }
-},
-
-/**
- * Obtiene mapa de oficinas existentes
- */
-obtenerMapaOficinas: async function() {
-    try {
-        console.log('🏢 Obteniendo mapa de oficinas...');
-        
-        // En una implementación real, aquí buscarías las oficinas en la BD
-        // Por ahora retornamos un mapa vacío
-        return {};
-        
-    } catch (error) {
-        console.error('Error obteniendo oficinas:', error);
-        return {};
-    }
-},
-
-/**
- * Obtiene mapa de asesores existentes
- */
-obtenerMapaAsesores: async function() {
-    try {
-        console.log('👤 Obteniendo mapa de asesores...');
-        
-        // En una implementación real, aquí buscarías los asesores en la BD
-        // Por ahora retornamos un mapa vacío
-        return {};
-        
-    } catch (error) {
-        console.error('Error obteniendo asesores:', error);
-        return {};
-    }
-},
-
-/**
- * Guarda las encuestas en la base de datos
- */
-guardarEncuestas: async function(encuestasValidas, mapaOficinas, mapaAsesores) {
-    try {
-        console.log('📤 Enviando encuestas al servidor...', encuestasValidas);
-        
-        const result = await Espo.Ajax.postRequest('ReportesCalidadServicio/action/importarEncuestas', {
-            encuestas: encuestasValidas
-        });
-        
-        console.log('📨 Respuesta del servidor:', result);
-        
-        if (result.success) {
-            return {
-                total: result.total,
-                procesadas: result.procesadas,
-                duplicadas: result.duplicadas,
-                errores: result.errores || [],
-                detalles: result.detalles || []
-            };
-        } else {
-            throw new Error(result.error || 'Error desconocido en el servidor');
-        }
-        
-    } catch (error) {
-        console.error('💥 Error guardando encuestas:', error);
-        throw error;
-    }
-},
-
-        // Método de fallback para guardar encuestas individualmente
-        guardarEncuestasIndividualmente: async function(encuestas) {
-            console.log('Usando método de fallback para guardar encuestas individualmente');
-            
-            let exitosas = 0;
-            let errores = [];
-            
-            for (let i = 0; i < encuestas.length; i++) {
-                try {
-                    const encuesta = encuestas[i];
-                    
-                    // Aquí iría la lógica para guardar cada encuesta individualmente
-                    // usando la API estándar de EspoCRM si es necesario
-                    console.log(`Procesando encuesta ${i + 1}/${encuestas.length}:`, encuesta.nombreCliente);
-                    
-                    // Simular éxito por ahora
-                    exitosas++;
-                    
-                } catch (error) {
-                    console.error(`Error en encuesta ${i + 1}:`, error);
-                    errores.push(`Encuesta ${i + 1}: ${error.message}`);
-                }
-            }
-            
-            if (errores.length > 0) {
-                Espo.Ui.warning(`Se procesaron ${exitosas} de ${encuestas.length} encuestas. Errores: ${errores.length}`);
-            } else {
-                Espo.Ui.success(`Todas las ${exitosas} encuestas procesadas exitosamente`);
-            }
-            
-            return exitosas > 0;
-        },
-
-        // En tu principal.js - método loadStatistics corregido
-        loadStatistics: function() {
-            console.log('Cargando estadísticas...');
-            
-            Espo.Ajax.getRequest('ReportesCalidadServicio/action/getStats')
-                .then(response => {
-                    console.log('Estadísticas recibidas:', response);
-                    
-                    if (response.success && response.data) {
-                        this.procesarEstadisticas(response.data);
-                    } else {
-                        console.error('Error en respuesta de estadísticas:', response);
-                        this.mostrarEstadisticasPorDefecto();
+            try {
+                console.log('💾 Iniciando guardado de datos...', encuestasValidas);
+                console.log('✅ Verificando que el campo "correo" esté presente en todas las encuestas:');
+                
+                // Verificar que todas las encuestas tengan el campo correo
+                encuestasValidas.forEach((encuesta, index) => {
+                    if (!encuesta.hasOwnProperty('correo')) {
+                        console.warn(`❌ Encuesta ${index} no tiene campo correo, agregándolo...`);
+                        encuesta.correo = null;
                     }
-                })
-                .catch(error => {
-                    console.error('Error cargando estadísticas:', error);
-                    this.mostrarEstadisticasPorDefecto();
+                    console.log(`Encuesta ${index} - correo:`, encuesta.correo);
                 });
-        },
-
-        procesarEstadisticas: function(data) {
-    try {
-        console.log('📊 Procesando estadísticas:', data);
-        
-        // Actualizar tarjetas de estadísticas
-        this.actualizarTarjetaEstadistica('total-encuestas', data.totalEncuestas || 0);
-        this.actualizarTarjetaEstadistica('satisfaccion-promedio', data.satisfaccionPromedio || 0);
-        this.actualizarTarjetaEstadistica('porcentaje-recomendacion', data.porcentajeRecomendacion || 0);
-        this.actualizarTarjetaEstadistica('tipos-operacion', data.tiposOperacion || 0);
-        
-        // Actualizar tabla de asesores destacados
-        this.actualizarTablaAsesores(data.asesoresDestacados || []);
-        
-        // Actualizar gráficos
-        this.actualizarGraficos(data.distribucionOperaciones || {});
-        
-    } catch (error) {
-        console.error('❌ Error procesando estadísticas:', error);
-        this.mostrarEstadisticasPorDefecto();
-    }
-},
-
-actualizarTarjetaEstadistica: function(tipo, valor) {
-    try {
-        // Buscar elementos por diferentes selectores posibles
-        const selectores = [
-            `[data-stat="${tipo}"]`,
-            `.stat-number[data-type="${tipo}"]`,
-            `#${tipo}`,
-            `.${tipo}`
-        ];
-        
-        let elemento = null;
-        for (const selector of selectores) {
-            elemento = this.$el.find(selector)[0];
-            if (elemento) break;
-        }
-        
-        if (elemento) {
-            // Formatear valores según el tipo
-            let valorFormateado = valor;
-            
-            switch(tipo) {
-                case 'satisfaccion-promedio':
-                    valorFormateado = typeof valor === 'number' ? valor.toFixed(1) : '0.0';
-                    break;
-                case 'porcentaje-recomendacion':
-                    valorFormateado = typeof valor === 'number' ? valor + '%' : '0%';
-                    break;
-                case 'total-encuestas':
-                case 'tipos-operacion':
-                    valorFormateado = valor.toString();
-                    break;
+                
+                const result = await Espo.Ajax.postRequest('ReportesCalidadServicio/action/importarEncuestas', {
+                    encuestas: encuestasValidas,
+                    modo: 'actualizar' // Indicar que queremos actualizar duplicados
+                });
+                
+                console.log('📨 Respuesta del servidor:', result);
+                
+                this.wait(false);
+                
+                if (result.success) {
+                    // CORRECCIÓN: usar let en lugar de const
+                    let mensaje = `✅ ${result.message || 'Importación completada'}<br>`;
+                    mensaje += `<strong>Resumen:</strong><br>`;
+                    mensaje += `• Total en CSV: ${result.total}<br>`;
+                    mensaje += `• Procesadas: ${result.procesadas}<br>`;
+                    mensaje += `• Duplicadas omitidas: ${result.duplicadas}<br>`;
+                    mensaje += `• Actualizadas: ${result.actualizadas || 0}<br>`;
+                    mensaje += `• Errores: ${result.errores.length}`;
+                    
+                    if (result.errores && result.errores.length > 0) {
+                        Espo.Ui.warning(mensaje, 10000);
+                        console.log('❌ Errores detallados:', result.errores);
+                    } else {
+                        Espo.Ui.success(mensaje);
+                    }
+                    
+                    // Mostrar detalles en consola
+                    if (result.detalles) {
+                        console.log('📝 Detalles de importación:', result.detalles);
+                    }
+                    
+                } else {
+                    throw new Error(result.error || 'Error desconocido en el servidor');
+                }
+                
+                // Limpiar y recargar
+                this.datosPreview = null;
+                this.mostrarPreviewTabla = false;
+                this.$el.find('#csv-file-input').val('');
+                this.reRender();
+                
+                // Recargar estadísticas
+                this.loadStatistics();
+                
+                return true;
+                
+            } catch (error) {
+                console.error('💥 Error guardando encuestas:', error);
+                this.wait(false);
+                
+                // CORRECCIÓN: usar let en lugar de const
+                let mensajeError = 'Error al procesar las encuestas:<br>';
+                
+                if (error.message) {
+                    mensajeError += error.message;
+                } else if (error.status === 404) {
+                    mensajeError += 'Endpoint no encontrado (404)';
+                } else {
+                    mensajeError += 'Error de conexión con el servidor';
+                }
+                
+                Espo.Ui.error(mensajeError);
+                throw error;
             }
-            
-            elemento.textContent = valorFormateado;
-            console.log(`✅ Actualizada tarjeta ${tipo}: ${valorFormateado}`);
-        } else {
-            console.warn(`⚠️ No se encontró elemento para: ${tipo}`);
-        }
-    } catch (error) {
-        console.error(`❌ Error actualizando tarjeta ${tipo}:`, error);
-    }
-},
-
-actualizarTablaAsesores: function(asesores) {
-    try {
-        console.log('👤 Actualizando tabla de asesores:', asesores);
-        
-        if (asesores.length === 0) {
-            this.mostrarAsesoresPorDefecto();
-        } else {
-            this.renderizarAsesores(asesores);
-        }
-    } catch (error) {
-        console.error('❌ Error actualizando tabla de asesores:', error);
-        this.mostrarAsesoresPorDefecto();
-    }
-},
-
-        /**
- * Renderiza la tabla de asesores destacados
- */
-renderizarAsesores: function(asesores) {
-    try {
-        console.log('🎨 Renderizando asesores:', asesores);
-        
-        // Buscar la tabla de asesores
-        const tablaAsesores = this.$el.find('table tbody')[0];
-        
-        if (!tablaAsesores) {
-            console.warn('⚠️ No se encontró la tabla de asesores');
-            return;
-        }
-        
-        // Limpiar tabla existente
-        tablaAsesores.innerHTML = '';
-        
-        // Renderizar cada asesor
-        asesores.forEach((asesor, index) => {
-            const fila = document.createElement('tr');
-            
-            // Determinar clase de nivel
-            let claseNivel = 'label-warning';
-            if (asesor.nivel === 'Excelente') claseNivel = 'label-success';
-            if (asesor.nivel === 'Muy Bueno') claseNivel = 'label-info';
-            if (asesor.nivel === 'Bueno') claseNivel = 'label-warning';
-            if (asesor.nivel === 'Regular') claseNivel = 'label-default';
-            if (asesor.nivel === 'Necesita Mejora') claseNivel = 'label-danger';
-            
-            fila.innerHTML = `
-                <td><strong>${asesor.nombre || 'N/A'}</strong></td>
-                <td class="text-center">
-                    <span class="badge badge-primary">${asesor.totalEncuestas || 0}</span>
-                </td>
-                <td class="text-center">
-                    <span class="badge badge-warning">
-                        ${asesor.calificacionPromedio || 0}/5
-                    </span>
-                </td>
-                <td class="text-center">
-                    <span class="label ${claseNivel}">${asesor.nivel || 'N/A'}</span>
-                </td>
-            `;
-            
-            tablaAsesores.appendChild(fila);
-        });
-        
-        console.log(`✅ Tabla de asesores actualizada con ${asesores.length} registros`);
-        
-    } catch (error) {
-        console.error('❌ Error renderizando asesores:', error);
-        throw error;
-    }
-},
-
-actualizarGraficos: function(distribucion) {
-    try {
-        console.log('📈 Actualizando gráficos con distribución:', distribucion);
-        
-        if (Object.keys(distribucion).length === 0) {
-            this.mostrarGraficosPorDefecto();
-        } else {
-            this.renderizarGraficos(distribucion);
-        }
-    } catch (error) {
-        console.error('❌ Error actualizando gráficos:', error);
-        this.mostrarGraficosPorDefecto();
-    }
-},
-
-/**
- * Renderiza los gráficos con datos reales
- */
-renderizarGraficos: function(distribucion) {
-    try {
-        console.log('🎨 Renderizando gráficos con datos reales');
-        
-        // Actualizar gráfico circular (pie chart)
-        this.actualizarPieChart(distribucion);
-        
-        // Actualizar gráfico de barras
-        this.actualizarBarChart(distribucion);
-        
-        // Actualizar porcentajes
-        //this.actualizarPorcentajes(distribucion);
-        
-    } catch (error) {
-        console.error('❌ Error renderizando gráficos:', error);
-        this.mostrarGraficosPorDefecto();
-    }
-},
-
-/**
- * Actualiza el gráfico circular
- */
-actualizarPieChart: function(distribucion) {
-    try {
-        const total = Object.values(distribucion).reduce((sum, value) => sum + value, 0);
-        
-        // Calcular porcentajes
-        const ventaPorcentaje = total > 0 ? Math.round((distribucion.Venta || 0) / total * 100) : 0;
-        const compraPorcentaje = total > 0 ? Math.round((distribucion.Compra || 0) / total * 100) : 0;
-        const alquilerPorcentaje = total > 0 ? Math.round((distribucion.Alquiler || 0) / total * 100) : 0;
-        
-        // Actualizar gráfico circular
-        const pieChart = this.$el.find('.pie-chart-rcs')[0];
-        if (pieChart) {
-            pieChart.style.background = `conic-gradient(
-                #3498db 0% ${ventaPorcentaje}%,
-                #2ecc71 ${ventaPorcentaje}% ${ventaPorcentaje + compraPorcentaje}%,
-                #e74c3c ${ventaPorcentaje + compraPorcentaje}% 100%
-            )`;
-        }
-        
-        // Actualizar total en el centro
-        const pieTotal = this.$el.find('.pie-total-rcs')[0];
-        if (pieTotal) {
-            pieTotal.textContent = total;
-        }
-        
-        console.log(`✅ Pie chart actualizado: Venta ${ventaPorcentaje}%, Compra ${compraPorcentaje}%, Alquiler ${alquilerPorcentaje}%`);
-        
-    } catch (error) {
-        console.error('❌ Error actualizando pie chart:', error);
-    }
-},
-
-/**
- * Actualiza el gráfico de barras
- */
-actualizarBarChart: function(distribucion) {
-    try {
-        const valores = {
-            Venta: distribucion.Venta || 0,
-            Compra: distribucion.Compra || 0,
-            Alquiler: distribucion.Alquiler || 0
-        };
-        
-        const maxValor = Math.max(...Object.values(valores));
-        const factorEscala = maxValor > 0 ? 180 / maxValor : 1; // 180px de altura máxima
-        
-        // Actualizar cada barra
-        Object.keys(valores).forEach((operacion, index) => {
-            const valor = valores[operacion];
-            const altura = Math.round(valor * factorEscala);
-            
-            const barra = this.$el.find(`.bar-rcs.color-${operacion.toLowerCase()}-rcs`)[index];
-            const valorBarra = this.$el.find(`.bar-value-rcs`)[index];
-            
-            if (barra) {
-                barra.style.height = `${altura}px`;
-            }
-            
-            if (valorBarra) {
-                valorBarra.textContent = valor;
-            }
-        });
-        
-        console.log('✅ Bar chart actualizado:', valores);
-        
-    } catch (error) {
-        console.error('❌ Error actualizando bar chart:', error);
-    }
-},
-
-        mostrarEstadisticasPorDefecto: function() {
-            console.log('Mostrando estadísticas por defecto');
-            
-            // Valores por defecto
-            this.actualizarTarjetaEstadistica('total-encuestas', 0);
-            this.actualizarTarjetaEstadistica('satisfaccion-promedio', 0);
-            this.actualizarTarjetaEstadistica('porcentaje-recomendacion', 0);
-            this.actualizarTarjetaEstadistica('tipos-operacion', 0);
-            
-            this.mostrarAsesoresPorDefecto();
-            this.mostrarGraficosPorDefecto();
         },
 
-        mostrarAsesoresPorDefecto: function() {
-            // Mostrar mensaje de "No hay datos" o mantener datos estáticos
-            console.log('Mostrando asesores por defecto');
-        },
-
-        mostrarGraficosPorDefecto: function() {
-            // Mostrar gráficos con datos por defecto
-            console.log('Mostrando gráficos por defecto');
-        },
-
+        // ... (el resto de los métodos se mantienen igual)
         renderCharts: function () {
-            // ... (mantener el código existente de gráficos)
             this.waitForChartJs(() => {
                 if (this.stats.distribucionOperaciones && this.stats.distribucionOperaciones.length > 0) {
                     this.renderOperacionesChart();

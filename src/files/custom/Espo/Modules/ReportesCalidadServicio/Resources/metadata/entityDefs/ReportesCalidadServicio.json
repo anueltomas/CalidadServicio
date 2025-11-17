@@ -23,7 +23,10 @@
       "type": "datetime"
     },
     "correo": {
-      "type": "email"
+      "type": "email",
+      "required": false,
+      "readOnly": false,
+      "maxLength": 255
     },
     "tipoOperacion": {
       "type": "enum",
