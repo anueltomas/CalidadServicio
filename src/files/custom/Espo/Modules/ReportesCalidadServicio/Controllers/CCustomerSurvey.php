@@ -13,8 +13,6 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 throw new BadRequest("Método no permitido");
             }
             
-            error_log("🎯 === INICIO IMPORTAR ENCUESTAS ===");
-            
             $entityManager = $this->getContainer()->get('entityManager');
             
             if (!$entityManager) {
@@ -32,21 +30,12 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 throw new BadRequest("Formato de datos inválido");
             }
             
-            error_log("📊 Encuestas a procesar: " . count($encuestas));
-            
-            // DEBUG: Primera encuesta
-            if (!empty($encuestas[0])) {
-                error_log("🔍 PRIMERA ENCUESTA RECIBIDA:");
-                error_log(json_encode($encuestas[0], JSON_PRETTY_PRINT));
-            }
-            
             $resultado = [
                 'success' => true,
                 'total' => count($encuestas),
                 'procesadas' => 0,
                 'duplicadas' => 0,
-                'errores' => [],
-                'detalles' => []
+                'errores' => []
             ];
             
             foreach ($encuestas as $index => $encuesta) {
@@ -55,42 +44,27 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                         $encuesta = (array) $encuesta;
                     }
                     
-                    error_log("📝 Procesando encuesta índice {$index}...");
-                    
                     // Validar duplicados
                     if ($this->encuestaExiste($encuesta, $entityManager)) {
                         $resultado['duplicadas']++;
-                        $nombreCliente = $encuesta['clientName'] ?? 'N/A';
-                        $resultado['detalles'][] = "Encuesta {$nombreCliente} - DUPLICADA";
-                        error_log("🔄 Duplicada omitida: " . $nombreCliente);
                         continue;
                     }
                     
                     // Guardar
                     if ($this->guardarEncuesta($encuesta, $entityManager)) {
                         $resultado['procesadas']++;
-                        $nombreCliente = $encuesta['clientName'] ?? 'N/A';
-                        $resultado['detalles'][] = "Encuesta {$nombreCliente} - GUARDADA";
-                        error_log("✅ Guardada: " . $nombreCliente);
                     } else {
                         throw new \Exception("Error al guardar en BD");
                     }
                     
                 } catch (\Exception $e) {
-                    $errorMsg = "Índice {$index}: " . $e->getMessage();
-                    $resultado['errores'][] = $errorMsg;
-                    error_log("❌ " . $errorMsg);
+                    $resultado['errores'][] = "Índice {$index}: " . $e->getMessage();
                 }
             }
-            
-            $resultado['message'] = "Completado: {$resultado['procesadas']}/{$resultado['total']} procesadas, {$resultado['duplicadas']} duplicadas";
-            error_log("🎉 " . $resultado['message']);
             
             return $resultado;
             
         } catch (\Exception $e) {
-            error_log("💥 ERROR: " . $e->getMessage());
-            
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -105,8 +79,6 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     public function getActionGetStats($params, $data, $request)
     {
         try {
-            error_log("📈 === OBTENIENDO ESTADÍSTICAS ===");
-            
             $entityManager = $this->getContainer()->get('entityManager');
             
             if (!$entityManager) {
@@ -121,8 +93,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             ];
             
         } catch (\Exception $e) {
-            error_log("❌ ERROR en getStats: " . $e->getMessage());
-            
+            // En caso de error, devolver estadísticas por defecto
             return [
                 'success' => true,
                 'data' => $this->obtenerEstadisticasPorDefecto()
@@ -150,7 +121,6 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             return $existe !== null;
             
         } catch (\Exception $e) {
-            error_log("⚠️ Error verificando duplicado: " . $e->getMessage());
             return false;
         }
     }
@@ -158,38 +128,32 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     protected function guardarEncuesta($datosEncuesta, $entityManager)
     {
         try {
-            error_log("💾 === GUARDANDO ENCUESTA ===");
-            
             $encuesta = $entityManager->getEntity('CCustomerSurvey');
             
             if (!$encuesta) {
-                throw new \Exception("No se pudo crear entidad CCustomerSurvey");
+                return false;
             }
             
-            // ✅ PROCESAR DATOS SEGÚN ORDEN DE BD
             $datosProcesados = [];
             
-            // 1. created_at
+            // Campos básicos
             if (isset($datosEncuesta['createdAt']) && !empty($datosEncuesta['createdAt'])) {
                 $datosProcesados['createdAt'] = $datosEncuesta['createdAt'];
             }
             
-            // 2. email_address
             if (isset($datosEncuesta['emailAddress']) && !empty($datosEncuesta['emailAddress'])) {
                 $datosProcesados['emailAddress'] = trim($datosEncuesta['emailAddress']);
             }
             
-            // 3. operation_type
             if (isset($datosEncuesta['operationType']) && !empty($datosEncuesta['operationType'])) {
                 $datosProcesados['operationType'] = trim($datosEncuesta['operationType']);
             }
             
-            // 4. assigned_user_id
             if (isset($datosEncuesta['assignedUserId']) && !empty($datosEncuesta['assignedUserId'])) {
                 $datosProcesados['assignedUserId'] = trim($datosEncuesta['assignedUserId']);
             }
             
-            // 5-15. Campos de calificación 0-4 (YA CORREGIDOS EN FRONTEND)
+            // Campos de calificación
             $camposCalificacion = [
                 'communicationEffectiveness',
                 'legalAdvice',
@@ -206,71 +170,53 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             
             foreach ($camposCalificacion as $campo) {
                 if (isset($datosEncuesta[$campo]) && $datosEncuesta[$campo] !== '' && $datosEncuesta[$campo] !== null) {
-                    // ✅ Tomar valor directo (ya corregido en frontend)
                     $valor = (int)$datosEncuesta[$campo];
                     if ($valor >= 0 && $valor <= 4) {
                         $datosProcesados[$campo] = $valor;
-                        error_log("  ✅ {$campo}: {$valor}");
                     }
                 }
             }
             
-            // 16. general_advisor_rating (escala 1-5)
+            // General advisor rating
             if (isset($datosEncuesta['generalAdvisorRating']) && $datosEncuesta['generalAdvisorRating'] !== '' && $datosEncuesta['generalAdvisorRating'] !== null) {
                 $valor = (int)$datosEncuesta['generalAdvisorRating'];
                 if ($valor >= 1 && $valor <= 5) {
                     $datosProcesados['generalAdvisorRating'] = $valor;
-                    error_log("  ✅ generalAdvisorRating: {$valor}");
                 }
             }
             
-            // 17. recommendation (0 o 1)
+            // Recommendation
             if (isset($datosEncuesta['recommendation'])) {
                 $datosProcesados['recommendation'] = $datosEncuesta['recommendation'] === '1' ? '1' : '0';
-                error_log("  ✅ recommendation: {$datosProcesados['recommendation']}");
             }
             
-            // 18. contact_medium
+            // Contact medium
             if (isset($datosEncuesta['contactMedium']) && is_array($datosEncuesta['contactMedium'])) {
                 $datosProcesados['contactMedium'] = $datosEncuesta['contactMedium'];
             }
+            
             if (isset($datosEncuesta['contactMediumOther']) && !empty($datosEncuesta['contactMediumOther'])) {
                 $datosProcesados['contactMediumOther'] = $datosEncuesta['contactMediumOther'];
             }
             
-            // 19. additional_feedback
+            // Additional feedback
             if (isset($datosEncuesta['additionalFeedback']) && !empty($datosEncuesta['additionalFeedback'])) {
                 $datosProcesados['additionalFeedback'] = trim($datosEncuesta['additionalFeedback']);
             }
             
-            // 20. client_name (OBLIGATORIO)
+            // Client name (obligatorio)
             if (isset($datosEncuesta['clientName']) && !empty($datosEncuesta['clientName'])) {
                 $datosProcesados['clientName'] = trim($datosEncuesta['clientName']);
-                error_log("  ✅ clientName: {$datosProcesados['clientName']}");
             }
             
-            // estatus
             $datosProcesados['estatus'] = $datosEncuesta['estatus'] ?? '2';
             
-            // ✅ DEBUG: Mostrar datos finales
-            error_log("📤 DATOS FINALES A GUARDAR:");
-            error_log(json_encode($datosProcesados, JSON_PRETTY_PRINT));
-            
-            // Establecer datos
             $encuesta->set($datosProcesados);
-            
-            // Guardar
             $entityManager->saveEntity($encuesta);
             
-            error_log("🎉 ✅ Encuesta guardada con ID: " . $encuesta->get('id'));
             return true;
             
         } catch (\Exception $e) {
-            error_log("💥 ❌ ERROR al guardar:");
-            error_log("📝 Mensaje: " . $e->getMessage());
-            error_log("📍 " . $e->getFile() . ":" . $e->getLine());
-            error_log("🔍 Trace: " . $e->getTraceAsString());
-            
             return false;
         }
     }
@@ -278,62 +224,142 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     protected function obtenerEstadisticas($entityManager)
     {
         try {
-            // Total de encuestas
+            // 1. Total de encuestas
             $totalEncuestas = $entityManager->getRepository('CCustomerSurvey')
                 ->where(['deleted' => false])
                 ->count();
 
-            // Calificación promedio
-            $avgRating = $entityManager->getRepository('CCustomerSurvey')
-                ->select(['avgRating' => 'AVG:generalAdvisorRating'])
+            // 2. Calificación promedio general - MÉTODO SIMPLIFICADO
+            $encuestasConRating = $entityManager->getRepository('CCustomerSurvey')
                 ->where(['deleted' => false, 'generalAdvisorRating!=' => null])
-                ->findOne();
-
-            $satisfaccionPromedio = $avgRating ? round($avgRating->get('avgRating'), 1) : 0;
-
-            // Distribución por tipo de operación
-            $tiposOperacion = $entityManager->getRepository('CCustomerSurvey')
-                ->select(['operationType', 'COUNT:id'])
-                ->where(['deleted' => false])
-                ->groupBy('operationType')
                 ->find();
-
-            $distribucionOperaciones = [];
-            foreach ($tiposOperacion as $tipo) {
-                $distribucionOperaciones[$tipo->get('operationType')] = $tipo->get('COUNT:id');
+            
+            $sumaRatings = 0;
+            $contadorRatings = 0;
+            
+            foreach ($encuestasConRating as $encuesta) {
+                $rating = $encuesta->get('generalAdvisorRating');
+                if ($rating !== null) {
+                    $sumaRatings += (float)$rating;
+                    $contadorRatings++;
+                }
             }
+            
+            $satisfaccionPromedio = $contadorRatings > 0 ? round($sumaRatings / $contadorRatings, 1) : 0;
 
-            // Porcentaje de recomendación
-            $recomendaciones = $entityManager->getRepository('CCustomerSurvey')
-                ->select(['recommendation', 'COUNT:id'])
-                ->where(['deleted' => false])
-                ->groupBy('recommendation')
+            // 3. Distribución por tipo de operación
+            $distribucionOperaciones = [
+                'Venta' => 0,
+                'Compra' => 0, 
+                'Alquiler' => 0
+            ];
+            
+            $encuestasOperacion = $entityManager->getRepository('CCustomerSurvey')
+                ->where(['deleted' => false, 'operationType!=' => null])
                 ->find();
-
-            $totalRecomiendan = 0;
-
-            foreach ($recomendaciones as $rec) {
-                if ($rec->get('recommendation') === '1') {
-                    $totalRecomiendan = $rec->get('COUNT:id');
+            
+            foreach ($encuestasOperacion as $encuesta) {
+                $operacion = $encuesta->get('operationType');
+                if (isset($distribucionOperaciones[$operacion])) {
+                    $distribucionOperaciones[$operacion]++;
                 }
             }
 
+            // 4. Porcentaje de recomendación
+            $totalRecomiendan = $entityManager->getRepository('CCustomerSurvey')
+                ->where(['deleted' => false, 'recommendation' => '1'])
+                ->count();
+                
             $porcentajeRecomendacion = $totalEncuestas > 0 ? 
                 round(($totalRecomiendan / $totalEncuestas) * 100) : 0;
+
+            // 5. Promedios por categoría - MÉTODO SIMPLIFICADO
+            $promediosCategorias = $this->calcularPromediosCategorias($entityManager);
+
+            // 6. Distribución de calificaciones
+            $distribucionCalificaciones = $this->calcularDistribucionCalificaciones($entityManager);
 
             return [
                 'totalEncuestas' => $totalEncuestas,
                 'satisfaccionPromedio' => $satisfaccionPromedio,
                 'porcentajeRecomendacion' => $porcentajeRecomendacion,
-                'tiposOperacion' => count($distribucionOperaciones),
+                'tiposOperacion' => count(array_filter($distribucionOperaciones)),
                 'distribucionOperaciones' => $distribucionOperaciones,
-                'asesoresDestacados' => []
+                'asesoresDestacados' => [],
+                'promediosCategorias' => $promediosCategorias,
+                'distribucionCalificaciones' => $distribucionCalificaciones
             ];
             
         } catch (\Exception $e) {
-            error_log("❌ Error en estadísticas: " . $e->getMessage());
+            // Si hay error, devolver valores por defecto
             return $this->obtenerEstadisticasPorDefecto();
         }
+    }
+    
+    protected function calcularPromediosCategorias($entityManager)
+    {
+        $campos = [
+            'communicationEffectiveness',
+            'legalAdvice', 
+            'personalPresentation',
+            'detailManagement',
+            'punctuality',
+            'commitmentLevel',
+            'problemSolving',
+            'fullSupport',
+            'unexpectedSituations',
+            'negotiationTiming',
+            'officeRating'
+        ];
+
+        $promedios = [];
+        
+        foreach ($campos as $campo) {
+            try {
+                // Método simplificado: obtener todas las encuestas y calcular manualmente
+                $encuestasConValor = $entityManager->getRepository('CCustomerSurvey')
+                    ->where(['deleted' => false, $campo . '!=' => null])
+                    ->find();
+                
+                $suma = 0;
+                $contador = 0;
+                
+                foreach ($encuestasConValor as $encuesta) {
+                    $valor = $encuesta->get($campo);
+                    if ($valor !== null) {
+                        $suma += (float)$valor;
+                        $contador++;
+                    }
+                }
+                
+                $promedios[$campo] = $contador > 0 ? round($suma / $contador, 1) : 0;
+                
+            } catch (\Exception $e) {
+                $promedios[$campo] = 0;
+            }
+        }
+
+        return $promedios;
+    }
+    
+    protected function calcularDistribucionCalificaciones($entityManager)
+    {
+        $distribucion = [1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0];
+        
+        for ($i = 1; $i <= 5; $i++) {
+            try {
+                $count = $entityManager->getRepository('CCustomerSurvey')
+                    ->where(['deleted' => false, 'generalAdvisorRating' => $i])
+                    ->count();
+                    
+                $distribucion[$i] = $count;
+                
+            } catch (\Exception $e) {
+                $distribucion[$i] = 0;
+            }
+        }
+
+        return $distribucion;
     }
     
     protected function obtenerEstadisticasPorDefecto()
@@ -343,8 +369,22 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             'satisfaccionPromedio' => 0,
             'porcentajeRecomendacion' => 0,
             'tiposOperacion' => 0,
-            'distribucionOperaciones' => [],
-            'asesoresDestacados' => []
+            'distribucionOperaciones' => ['Venta' => 0, 'Compra' => 0, 'Alquiler' => 0],
+            'asesoresDestacados' => [],
+            'promediosCategorias' => [
+                'communicationEffectiveness' => 0,
+                'legalAdvice' => 0,
+                'personalPresentation' => 0,
+                'detailManagement' => 0,
+                'punctuality' => 0,
+                'commitmentLevel' => 0,
+                'problemSolving' => 0,
+                'fullSupport' => 0,
+                'unexpectedSituations' => 0,
+                'negotiationTiming' => 0,
+                'officeRating' => 0
+            ],
+            'distribucionCalificaciones' => [1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0]
         ];
     }
 }

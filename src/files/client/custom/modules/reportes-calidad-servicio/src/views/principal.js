@@ -15,11 +15,45 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 porcentajeRecomendacion: 0,
                 tiposOperacion: 0,
                 distribucionOperaciones: {},
-                asesoresDestacados: []
+                asesoresDestacados: [],
+                promediosCategorias: {},
+                distribucionCalificaciones: {},
+                efectividadComunicacion: 0,
+                asesoriaLegal: 0,
+                presentacionPersonal: 0,
+                manejoDetalles: 0,
+                puntualidad: 0,
+                compromiso: 0,
+                solucionProblemas: 0,
+                acompanamiento: 0,
+                situacionesImprevistas: 0,
+                tiemposNegociacion: 0,
+                calificacionOficina: 0
             };
             
+            this.charts = {};
+            
             this.initMappings();
-            this.loadStatistics();
+            
+            if (typeof Chart === 'undefined') {
+                console.log('📦 Cargando Chart.js...');
+                var script = document.createElement('script');
+                script.src = 'client/custom/modules/reportes-calidad-servicio/lib/chart.min.js';
+                script.onload = function() {
+                    console.log('✅ Chart.js cargado correctamente');
+                    this.registrarPluginsChart();
+                    this.loadStatistics();
+                }.bind(this);
+                script.onerror = function() {
+                    console.error('❌ Error al cargar Chart.js');
+                    Espo.Ui.error('Error al cargar la librería de gráficos');
+                    this.loadStatistics();
+                }.bind(this);
+                document.head.appendChild(script);
+            } else {
+                this.registrarPluginsChart();
+                this.loadStatistics();
+            }
         },
 
         afterRender: function () {
@@ -28,34 +62,64 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
             this.setupEventListeners();
         },
 
+        registrarPluginsChart: function() {
+            if (typeof Chart === 'undefined') return;
+
+            const barLabelsPlugin = {
+                id: 'barLabels',
+                afterDatasetsDraw: function(chart) {
+                    if (chart.config.type === 'bar') {
+                        var ctx = chart.ctx;
+                        
+                        chart.data.datasets.forEach(function(dataset, datasetIndex) {
+                            var meta = chart.getDatasetMeta(datasetIndex);
+                            if (!meta.hidden) {
+                                meta.data.forEach(function(element, index) {
+                                    var value = dataset.data[index];
+                                    
+                                    if (value > 0) {
+                                        if (chart.options.indexAxis === 'y') {
+                                            var textX = element.x + element.width + 8;
+                                            var textY = element.y;
+                                            
+                                            ctx.fillStyle = '#333333';
+                                            ctx.font = 'bold 13px Arial';
+                                            ctx.textAlign = 'left';
+                                            ctx.textBaseline = 'middle';
+                                            ctx.fillText(value.toFixed(1), textX, textY);
+                                        } else {
+                                            var textX = element.x;
+                                            var textY = element.y - 5;
+                                            
+                                            ctx.fillStyle = '#333333';
+                                            ctx.font = 'bold 12px Arial';
+                                            ctx.textAlign = 'center';
+                                            ctx.textBaseline = 'bottom';
+                                            ctx.fillText(value, textX, textY);
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }
+            };
+            
+            Chart.register(barLabelsPlugin);
+        },
+
         initMappings: function() {
             console.log('🔧 Inicializando mapeos según orden de campos de la BD...');
             
-            // ✅ ORDEN EXACTO DE CAMPOS EN LA BASE DE DATOS
             this.camposOrdenBD = [
-                'created_at',           // Marca temporal
-                'email_address',        // Correo
-                'operation_type',       // 1. ¿Qué tipo de operación realizó?
-                'assigned_user_id',     // ID Asesor
-                'communicationEffectiveness',  // Efectividad y regularidad en la Comunicación
-                'legal_advice',         // Asesoría legal, fiscal y financiera
-                'personal_presentation', // Presentación Personal e Imagen
-                'detail_management',    // Manejo de los detalles
-                'punctuality',          // Puntualidad
-                'commitment_level',     // Nivel de compromiso en el servicio
-                'problem_solving',      // Solución de problemas
-                'full_support',         // Acompañamiento de inicio a fin
-                'unexpected_situations', // Manejo de situaciones Imprevistas
-                'negotiation_timing',   // Manejo de los tiempos de la negociación
-                'general_advisor_rating', // 4. En general, ¿Cómo percibió el servicio...
-                'office_rating',        // 5. ¿Cómo califica el servicio prestado por la oficina Century 21?
-                'recommendation',       // 6. ¿Recomendaría el servicio de Century 21 a un amigo/familiar?
-                'contact_medium',       // 7. ¿Por cuál medio se puso en contacto...
-                'additional_feedback',  // 8. Sugerencia adicional...
-                'client_name'           // 10. Escriba su Primer Nombre y Primer Apellido.
+                'created_at', 'email_address', 'operation_type', 'assigned_user_id',
+                'communicationEffectiveness', 'legal_advice', 'personal_presentation',
+                'detail_management', 'punctuality', 'commitment_level', 'problem_solving',
+                'full_support', 'unexpected_situations', 'negotiation_timing',
+                'general_advisor_rating', 'office_rating', 'recommendation',
+                'contact_medium', 'additional_feedback', 'client_name'
             ];
             
-            // Mapeo de nombres CSV a nombres de campos internos
             this.csvToFieldMapping = {
                 'Marca temporal': 'createdAt',
                 'Correo': 'emailAddress',
@@ -78,37 +142,19 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 '8. Sugerencia adicional para mejorar el servicio asesor/oficina Century 21 . Estamos seguros de que hay algo más que le hubiera gustado que hiciera asesor/oficina por usted.': 'additionalFeedback',
                 '10. Escriba su Primer Nombre y Primer Apellido.': 'clientName'
             };
-            
+
             this.contactMediumMapping = {
-                'Contacto Directo': '0',
-                'Familiar / Amigo': '1', 
-                'Página Web Century21': '2',
-                'Mercado Libre': '3',
-                'Instagram': '4',
-                'Facebook / Marketplace': '5',
-                'Whatsapp': '6',
-                'Estados de Whatsapp': '7',
-                'Valla o Rótulo de Venta/Alquiler': '8',
-                'Visita en oficina': '9',
-                'Otro': 'contactMediumOther'
+                'Contacto Directo': '0', 'Familiar / Amigo': '1', 'Página Web Century21': '2',
+                'Mercado Libre': '3', 'Instagram': '4', 'Facebook / Marketplace': '5',
+                'Whatsapp': '6', 'Estados de Whatsapp': '7', 'Valla o Rótulo de Venta/Alquiler': '8',
+                'Visita en oficina': '9', 'Otro': 'contactMediumOther'
             };
 
-            // ✅ Campos que usan escala 0-4 (donde 5 debe convertirse a 4)
             this.fieldsScale0to4 = [
-                'communicationEffectiveness',
-                'legalAdvice', 
-                'personalPresentation',
-                'detailManagement',
-                'punctuality',
-                'commitmentLevel',
-                'problemSolving',
-                'fullSupport',
-                'unexpectedSituations',
-                'negotiationTiming',
-                'officeRating'
+                'communicationEffectiveness', 'legalAdvice', 'personalPresentation',
+                'detailManagement', 'punctuality', 'commitmentLevel', 'problemSolving',
+                'fullSupport', 'unexpectedSituations', 'negotiationTiming', 'officeRating'
             ];
-
-            console.log('✅ Mapeos inicializados correctamente');
         },
 
         setupEventListeners: function() {
@@ -221,7 +267,6 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
         findColumnsInCSV: function(headers) {
             const mapping = {};
             
-            // Buscar cada columna del CSV
             Object.keys(this.csvToFieldMapping).forEach(csvColumn => {
                 const fieldName = this.csvToFieldMapping[csvColumn];
                 const foundColumn = headers.find(h => h.trim() === csvColumn);
@@ -268,66 +313,49 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
             return result;
         },
 
-        // ✅ TRANSFORMACIÓN COMPLETA SIGUIENDO ORDEN DE BD
         transformRow: function(csvRow, columnMapping, lineNumber) {
             const transformed = {};
             const corrections = [];
             
             console.log(`🔄 Transformando línea ${lineNumber}...`);
 
-            // ============================================
-            // PROCESAR CADA CAMPO EN EL ORDEN CORRECTO
-            // ============================================
-
-            // 1. created_at (Marca temporal)
+            // 1. created_at
             if (columnMapping.createdAt && csvRow[columnMapping.createdAt]) {
                 const value = csvRow[columnMapping.createdAt].trim();
                 if (value) {
                     transformed.createdAt = this.transformDate(value);
-                    console.log(`  ✅ createdAt: ${transformed.createdAt}`);
                 }
             }
 
-            // 2. email_address (Correo)
+            // 2. email_address
             if (columnMapping.emailAddress && csvRow[columnMapping.emailAddress]) {
                 const value = csvRow[columnMapping.emailAddress].trim();
                 if (value) {
                     transformed.emailAddress = value;
-                    console.log(`  ✅ emailAddress: ${value}`);
                 }
             }
 
-            // 3. operation_type (Tipo de operación)
+            // 3. operation_type
             if (columnMapping.operationType && csvRow[columnMapping.operationType]) {
                 const value = csvRow[columnMapping.operationType].trim();
                 if (value) {
                     transformed.operationType = value;
-                    console.log(`  ✅ operationType: ${value}`);
                 }
             }
 
-            // 4. assigned_user_id (ID Asesor)
+            // 4. assigned_user_id
             if (columnMapping.assignedUserId && csvRow[columnMapping.assignedUserId]) {
                 const value = csvRow[columnMapping.assignedUserId].trim();
                 if (value) {
                     transformed.assignedUserId = value;
-                    console.log(`  ✅ assignedUserId: ${value}`);
                 }
             }
 
             // 5-15. Campos de calificación 0-4 CON CORRECCIÓN 5→4
             const ratingFields = [
-                'communicationEffectiveness',
-                'legalAdvice',
-                'personalPresentation',
-                'detailManagement',
-                'punctuality',
-                'commitmentLevel',
-                'problemSolving',
-                'fullSupport',
-                'unexpectedSituations',
-                'negotiationTiming',
-                'officeRating'
+                'communicationEffectiveness', 'legalAdvice', 'personalPresentation',
+                'detailManagement', 'punctuality', 'commitmentLevel', 'problemSolving',
+                'fullSupport', 'unexpectedSituations', 'negotiationTiming', 'officeRating'
             ];
 
             ratingFields.forEach(field => {
@@ -339,56 +367,49 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                             if (numericValue === 5) {
                                 transformed[field] = '4';
                                 corrections.push(`Línea ${lineNumber}, ${field}: 5 → 4`);
-                                console.log(`  🔧 ${field}: 5 → 4 (CORREGIDO)`);
                             } else if (numericValue >= 0 && numericValue <= 4) {
                                 transformed[field] = numericValue.toString();
-                                console.log(`  ✅ ${field}: ${numericValue}`);
                             }
                         }
                     }
                 }
             });
 
-            // 16. general_advisor_rating (escala 1-5, NO requiere corrección)
+            // 16. general_advisor_rating (escala 1-5)
             if (columnMapping.generalAdvisorRating && csvRow[columnMapping.generalAdvisorRating]) {
                 const value = csvRow[columnMapping.generalAdvisorRating].trim();
                 if (value !== '' && value !== 'NA' && value !== 'N/A') {
                     const numericValue = parseInt(value);
                     if (!isNaN(numericValue) && numericValue >= 1 && numericValue <= 5) {
                         transformed.generalAdvisorRating = numericValue.toString();
-                        console.log(`  ✅ generalAdvisorRating: ${numericValue}`);
                     }
                 }
             }
 
-            // 17. recommendation (SI = 1, NO = 0)
+            // 17. recommendation
             if (columnMapping.recommendation && csvRow[columnMapping.recommendation]) {
                 const value = csvRow[columnMapping.recommendation].trim().toLowerCase();
                 if (value) {
-                    // ✅ VALIDACIÓN ESTRICTA
                     const positiveValues = ['si lo recomendaría', 'si', 'sí', 'yes', '1', 'true'];
                     transformed.recommendation = positiveValues.includes(value) ? '1' : '0';
-                    console.log(`  ✅ recommendation: "${csvRow[columnMapping.recommendation]}" → ${transformed.recommendation}`);
                 }
             }
 
-            // 18. contact_medium (procesamiento especial)
+            // 18. contact_medium
             if (columnMapping.contactMedium && csvRow[columnMapping.contactMedium]) {
                 const value = csvRow[columnMapping.contactMedium].trim();
                 if (value) {
                     const contactData = this.transformContactMedium(value);
                     transformed.contactMedium = contactData.contactMedium;
                     transformed.contactMediumOther = contactData.contactMediumOther;
-                    console.log(`  ✅ contactMedium: ${JSON.stringify(contactData)}`);
                 }
             }
 
-            // 19. additional_feedback (texto libre)
+            // 19. additional_feedback
             if (columnMapping.additionalFeedback && csvRow[columnMapping.additionalFeedback]) {
                 const value = csvRow[columnMapping.additionalFeedback].trim();
                 if (value) {
                     transformed.additionalFeedback = value;
-                    console.log(`  ✅ additionalFeedback: ${value.substring(0, 50)}...`);
                 }
             }
 
@@ -397,14 +418,10 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 const value = csvRow[columnMapping.clientName].trim();
                 if (value) {
                     transformed.clientName = value;
-                    console.log(`  ✅ clientName: ${value}`);
                 }
             }
 
-            // ✅ Agregar estatus por defecto
             transformed.estatus = '2';
-
-            console.log(`✅ Línea ${lineNumber} transformada correctamente`);
 
             return {
                 data: transformed,
@@ -501,7 +518,6 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
         iniciarProcesoDeCarga: async function(encuestasValidadas) {
             try {
                 console.log('📤 Enviando datos al servidor...');
-                console.log('📋 Primer registro:', JSON.stringify(encuestasValidadas[0], null, 2));
                 
                 if (!encuestasValidadas || encuestasValidadas.length === 0) {
                     throw new Error('No hay datos válidos para importar');
@@ -555,11 +571,12 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                     console.log('✅ Estadísticas recibidas:', response);
                     
                     if (response && response.success && response.data) {
-                        this.stats = response.data;
+                        this.stats = this.procesarEstadisticasReales(response.data);
                         this.hasData = this.stats.totalEncuestas > 0;
                         this.isLoading = false;
                         this.updateUI();
                     } else {
+                        console.warn('⚠️ Respuesta vacía o sin datos');
                         this.handleNoData();
                     }
                 })
@@ -569,10 +586,38 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 });
         },
 
-        handleNoData: function() {
-            this.hasData = false;
-            this.isLoading = false;
-            this.updateUI();
+        procesarEstadisticasReales: function(datosBackend) {
+            console.log('🔄 Procesando estadísticas reales desde backend:', datosBackend);
+            
+            // Extraer promedios de categorías del backend
+            const promediosBackend = datosBackend.promediosCategorias || {};
+            
+            return {
+                // Datos básicos del backend
+                totalEncuestas: datosBackend.totalEncuestas || 0,
+                satisfaccionPromedio: datosBackend.satisfaccionPromedio || 0,
+                porcentajeRecomendacion: datosBackend.porcentajeRecomendacion || 0,
+                tiposOperacion: datosBackend.tiposOperacion || 0,
+                distribucionOperaciones: datosBackend.distribucionOperaciones || {},
+                asesoresDestacados: datosBackend.asesoresDestacados || [],
+                
+                // Promedios del backend
+                promediosCategorias: promediosBackend,
+                distribucionCalificaciones: datosBackend.distribucionCalificaciones || {},
+                
+                // Datos individuales para gráficos
+                efectividadComunicacion: promediosBackend.communicationEffectiveness || 0,
+                asesoriaLegal: promediosBackend.legalAdvice || 0,
+                presentacionPersonal: promediosBackend.personalPresentation || 0,
+                manejoDetalles: promediosBackend.detailManagement || 0,
+                puntualidad: promediosBackend.punctuality || 0,
+                compromiso: promediosBackend.commitmentLevel || 0,
+                solucionProblemas: promediosBackend.problemSolving || 0,
+                acompanamiento: promediosBackend.fullSupport || 0,
+                situacionesImprevistas: promediosBackend.unexpectedSituations || 0,
+                tiemposNegociacion: promediosBackend.negotiationTiming || 0,
+                calificacionOficina: promediosBackend.officeRating || 0
+            };
         },
 
         showLoadingState: function() {
@@ -580,6 +625,12 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
             if (container) {
                 container.innerHTML = this.getLoadingHTML();
             }
+        },
+
+        handleNoData: function() {
+            this.hasData = false;
+            this.isLoading = false;
+            this.updateUI();
         },
 
         updateUI: function() {
@@ -590,9 +641,406 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 container.innerHTML = this.getLoadingHTML();
             } else if (this.hasData) {
                 container.innerHTML = this.getDataHTML();
+                setTimeout(() => {
+                    this.renderCharts();
+                }, 100);
             } else {
                 container.innerHTML = this.getEmptyHTML();
                 setTimeout(() => this.setupEmptyEventListeners(), 100);
+            }
+        },
+
+        renderCharts: function() {
+            console.log('📊 Renderizando gráficos con datos reales...');
+            
+            if (typeof Chart === 'undefined') {
+                console.error('❌ Chart.js no está disponible');
+                this.mostrarErrorChartJS();
+                return;
+            }
+            
+            this.destroyCharts();
+            
+            const stats = this.stats;
+            const distribucion = stats.distribucionOperaciones || {};
+            
+            const venta = distribucion['Venta'] || 0;
+            const compra = distribucion['Compra'] || 0;
+            const alquiler = distribucion['Alquiler'] || 0;
+            
+            try {
+                this.renderDonutChart(venta, compra, alquiler);
+                this.renderBarChart(venta, compra, alquiler);
+                this.renderRadarChart();
+                this.renderHorizontalBarChart();
+                this.renderDistributionChart();
+                
+                console.log('✅ Todos los gráficos renderizados correctamente');
+            } catch (error) {
+                console.error('💥 Error al renderizar gráficos:', error);
+                this.mostrarErrorChartJS();
+            }
+        },
+
+        destroyCharts: function() {
+            Object.values(this.charts).forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            });
+            this.charts = {};
+        },
+
+        renderDonutChart: function(venta, compra, alquiler) {
+            const ctxDonut = document.getElementById('chart-donut');
+            if (ctxDonut) {
+                try {
+                    const total = venta + compra + alquiler;
+                    const data = [venta, compra, alquiler];
+                    
+                    this.charts.donut = new Chart(ctxDonut, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Venta', 'Compra', 'Alquiler'],
+                            datasets: [{
+                                data: data,
+                                backgroundColor: ['#2196F3', '#4CAF50', '#F44336'],
+                                borderWidth: 2,
+                                borderColor: '#fff'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '65%',
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.parsed || 0;
+                                            const percentage = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
+                                            return `${label}: ${value} (${percentage}%)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    console.log('✅ Gráfico de donut creado');
+                } catch (error) {
+                    console.error('❌ Error creando gráfico de donut:', error);
+                }
+            }
+        },
+
+        renderBarChart: function(venta, compra, alquiler) {
+            const ctxBarras = document.getElementById('chart-barras');
+            if (ctxBarras) {
+                try {
+                    this.charts.barras = new Chart(ctxBarras, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Venta', 'Compra', 'Alquiler'],
+                            datasets: [{
+                                label: 'Cantidad',
+                                data: [venta, compra, alquiler],
+                                backgroundColor: ['#2196F3', '#4CAF50', '#F44336'],
+                                borderWidth: 0,
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: Math.ceil(Math.max(venta, compra, alquiler) / 5) || 1
+                                    },
+                                    grid: {
+                                        color: 'rgba(0,0,0,0.1)'
+                                    }
+                                },
+                                x: {
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            }
+                        }
+                    });
+                    console.log('✅ Gráfico de barras creado');
+                } catch (error) {
+                    console.error('❌ Error creando gráfico de barras:', error);
+                }
+            }
+        },
+
+        renderRadarChart: function() {
+            const ctxRadar = document.getElementById('chart-radar');
+            if (ctxRadar) {
+                try {
+                    this.charts.radar = new Chart(ctxRadar, {
+                        type: 'radar',
+                        data: {
+                            labels: [
+                                'Comunicación',
+                                'Asesoría Legal',
+                                'Presentación',
+                                'Manejo Detalles',
+                                'Puntualidad',
+                                'Compromiso',
+                                'Solución Problemas',
+                                'Acompañamiento',
+                                'Situaciones Imprevistas',
+                                'Tiempos Negociación',
+                                'Calificación Oficina'
+                            ],
+                            datasets: [{
+                                label: 'Promedio de Calificación',
+                                data: [
+                                    this.stats.efectividadComunicacion || 0,
+                                    this.stats.asesoriaLegal || 0,
+                                    this.stats.presentacionPersonal || 0,
+                                    this.stats.manejoDetalles || 0,
+                                    this.stats.puntualidad || 0,
+                                    this.stats.compromiso || 0,
+                                    this.stats.solucionProblemas || 0,
+                                    this.stats.acompanamiento || 0,
+                                    this.stats.situacionesImprevistas || 0,
+                                    this.stats.tiemposNegociacion || 0,
+                                    this.stats.calificacionOficina || 0
+                                ],
+                                backgroundColor: 'rgba(184, 162, 121, 0.2)',
+                                borderColor: '#B8A279',
+                                borderWidth: 2,
+                                pointBackgroundColor: '#B8A279',
+                                pointBorderColor: '#fff',
+                                pointHoverBackgroundColor: '#fff',
+                                pointHoverBorderColor: '#B8A279'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                r: {
+                                    beginAtZero: true,
+                                    max: 5,
+                                    ticks: {
+                                        stepSize: 1,
+                                        callback: function(value) {
+                                            return value.toFixed(1);
+                                        }
+                                    },
+                                    grid: {
+                                        color: 'rgba(0,0,0,0.1)'
+                                    },
+                                    pointLabels: {
+                                        font: {
+                                            size: 11
+                                        }
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `${context.dataset.label}: ${context.parsed.r.toFixed(1)}/5`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    console.log('✅ Gráfico de radar creado con datos reales');
+                } catch (error) {
+                    console.error('❌ Error creando gráfico de radar:', error);
+                }
+            }
+        },
+
+        renderHorizontalBarChart: function() {
+            const ctxHorizontal = document.getElementById('chart-horizontal');
+            if (ctxHorizontal) {
+                try {
+                    this.charts.horizontal = new Chart(ctxHorizontal, {
+                        type: 'bar',
+                        data: {
+                            labels: [
+                                'Comunicación',
+                                'Asesoría Legal', 
+                                'Presentación Personal',
+                                'Manejo de Detalles',
+                                'Puntualidad',
+                                'Compromiso',
+                                'Solución Problemas',
+                                'Acompañamiento',
+                                'Situaciones Imprevistas',
+                                'Tiempos Negociación',
+                                'Calificación Oficina'
+                            ],
+                            datasets: [{
+                                label: 'Calificación Promedio',
+                                data: [
+                                    this.stats.efectividadComunicacion || 0,
+                                    this.stats.asesoriaLegal || 0,
+                                    this.stats.presentacionPersonal || 0,
+                                    this.stats.manejoDetalles || 0,
+                                    this.stats.puntualidad || 0,
+                                    this.stats.compromiso || 0,
+                                    this.stats.solucionProblemas || 0,
+                                    this.stats.acompanamiento || 0,
+                                    this.stats.situacionesImprevistas || 0,
+                                    this.stats.tiemposNegociacion || 0,
+                                    this.stats.calificacionOficina || 0
+                                ],
+                                backgroundColor: [
+                                    '#2196F3', '#4CAF50', '#F44336', '#FF9800', '#9C27B0',
+                                    '#00BCD4', '#8BC34A', '#FF5722', '#607D8B', '#795548',
+                                    '#B8A279'
+                                ],
+                                borderWidth: 0,
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    max: 5,
+                                    grid: {
+                                        color: 'rgba(0,0,0,0.1)'
+                                    },
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value.toFixed(1);
+                                        }
+                                    }
+                                },
+                                y: {
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `Calificación: ${context.parsed.x.toFixed(1)}/5`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    console.log('✅ Gráfico de barras horizontales creado con datos reales');
+                } catch (error) {
+                    console.error('❌ Error creando gráfico de barras horizontales:', error);
+                }
+            }
+        },
+
+        renderDistributionChart: function() {
+            const ctxDistribution = document.getElementById('chart-distribution');
+            if (ctxDistribution) {
+                try {
+                    const distribucion = this.stats.distribucionCalificaciones || {};
+                    const total = Object.values(distribucion).reduce((sum, val) => sum + val, 0);
+                    
+                    const data = [
+                        distribucion['5'] || 0,
+                        distribucion['4'] || 0,
+                        distribucion['3'] || 0,
+                        distribucion['2'] || 0,
+                        distribucion['1'] || 0
+                    ];
+
+                    this.charts.distribution = new Chart(ctxDistribution, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Excelente (5)', 'Muy Bueno (4)', 'Bueno (3)', 'Regular (2)', 'Deficiente (1)'],
+                            datasets: [{
+                                data: data,
+                                backgroundColor: [
+                                    '#4CAF50',
+                                    '#8BC34A', 
+                                    '#FFC107',
+                                    '#FF9800',
+                                    '#F44336'
+                                ],
+                                borderWidth: 2,
+                                borderColor: '#fff'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        padding: 20,
+                                        usePointStyle: true,
+                                        font: {
+                                            size: 11
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.parsed || 0;
+                                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                            return `${label}: ${value} (${percentage}%)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    console.log('✅ Gráfico de distribución creado con datos reales');
+                } catch (error) {
+                    console.error('❌ Error creando gráfico de distribución:', error);
+                }
+            }
+        },
+
+        mostrarErrorChartJS: function() {
+            const container = this.$el.find('#dynamic-content-container')[0];
+            if (container) {
+                const graficosContainer = container.querySelector('.graficos-container');
+                if (graficosContainer) {
+                    graficosContainer.innerHTML = `
+                        <div class="empty-alert">
+                            <div class="empty-icon">📊</div>
+                            <h3>Error al cargar gráficos</h3>
+                            <p class="text-muted">Chart.js no está disponible. Los datos se cargaron pero no se pueden mostrar los gráficos.</p>
+                        </div>
+                    `;
+                }
             }
         },
 
@@ -608,32 +1056,135 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
 
         getDataHTML: function() {
             const stats = this.stats;
+            const distribucion = stats.distribucionOperaciones || {};
+            
+            const venta = distribucion['Venta'] || 0;
+            const compra = distribucion['Compra'] || 0;
+            const alquiler = distribucion['Alquiler'] || 0;
+            const total = venta + compra + alquiler;
+            
+            const ventaPct = total > 0 ? Math.round((venta / total) * 100) : 0;
+            const compraPct = total > 0 ? Math.round((compra / total) * 100) : 0;
+            const alquilerPct = total > 0 ? Math.round((alquiler / total) * 100) : 0;
+            
             return `
-                <div class="estadisticas-principales">
-                    <div class="estadistica-card verde">
-                        <div class="estadistica-label">Total Encuestas</div>
-                        <div class="estadistica-valor">${stats.totalEncuestas || 0}</div>
-                        <div class="estadistica-desc">Base de datos</div>
+                <div class="reporte-container">
+                    <!-- Información de Encuesta -->
+                    <div class="info-encuesta-card">
+                        <h3 class="info-title">Información de Encuesta</h3>
+                        <table class="info-table">
+                            <tr>
+                                <td class="info-label">Total encuestados:</td>
+                                <td class="info-value">${stats.totalEncuestas}</td>
+                            </tr>
+                            <tr>
+                                <td class="info-label">Satisfacción promedio:</td>
+                                <td class="info-value">${stats.satisfaccionPromedio}/5</td>
+                            </tr>
+                            <tr>
+                                <td class="info-label">Porcentaje recomendación:</td>
+                                <td class="info-value">${stats.porcentajeRecomendacion}%</td>
+                            </tr>
+                            <tr>
+                                <td class="info-label">Fecha de Actualización:</td>
+                                <td class="info-value">${new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td>
+                            </tr>
+                        </table>
                     </div>
-                    <div class="estadistica-card naranja">
-                        <div class="estadistica-label">Satisfacción</div>
-                        <div class="estadistica-valor">${stats.satisfaccionPromedio || 0}</div>
-                        <div class="estadistica-desc">Promedio / 5</div>
-                    </div>
-                    <div class="estadistica-card rojo">
-                        <div class="estadistica-label">Recomendación</div>
-                        <div class="estadistica-valor">${stats.porcentajeRecomendacion || 0}%</div>
-                        <div class="estadistica-desc">Clientes satisfechos</div>
-                    </div>
-                </div>
 
-                <div class="alert alert-success system-info">
-                    <div class="system-status">
-                        <span class="status-indicator online"></span>
-                        <strong>✅ Sistema Conectado</strong>
-                    </div>
-                    <div class="system-details">
-                        Base de datos con <strong>${stats.totalEncuestas || 0}</strong> encuestas procesadas.
+                    <!-- Sección Principal -->
+                    <div class="seccion-operaciones">
+                        <h2 class="titulo-seccion">¿Qué tipo de operación realizó?</h2>
+                        
+                        <!-- Tabla de Operaciones -->
+                        <div class="tabla-operaciones-card">
+                            <table class="tabla-operaciones">
+                                <thead>
+                                    <tr>
+                                        <th>Opción</th>
+                                        <th>Cantidad</th>
+                                        <th>Porcentaje</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Venta</td>
+                                        <td>${venta}</td>
+                                        <td>${ventaPct}%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Compra</td>
+                                        <td>${compra}</td>
+                                        <td>${compraPct}%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Alquiler</td>
+                                        <td>${alquiler}</td>
+                                        <td>${alquilerPct}%</td>
+                                    </tr>
+                                    <tr class="total-row">
+                                        <td><strong>Total de Operaciones Individualmente:</strong></td>
+                                        <td><strong>${total}</strong></td>
+                                        <td><strong>100%</strong></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Gráficos Principales -->
+                        <div class="graficos-container">
+                            <div class="grafico-card">
+                                <h3 class="grafico-titulo">Distribución de Operaciones</h3>
+                                <div class="grafico-wrapper">
+                                    <canvas id="chart-donut"></canvas>
+                                </div>
+                                <div class="leyenda-donut">
+                                    <div class="leyenda-item">
+                                        <span class="leyenda-color" style="background: #2196F3;"></span>
+                                        <span class="leyenda-texto">Venta (${ventaPct}%)</span>
+                                    </div>
+                                    <div class="leyenda-item">
+                                        <span class="leyenda-color" style="background: #4CAF50;"></span>
+                                        <span class="leyenda-texto">Compra (${compraPct}%)</span>
+                                    </div>
+                                    <div class="leyenda-item">
+                                        <span class="leyenda-color" style="background: #F44336;"></span>
+                                        <span class="leyenda-texto">Alquiler (${alquilerPct}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grafico-card">
+                                <h3 class="grafico-titulo">Comparación de Operaciones</h3>
+                                <div class="grafico-wrapper">
+                                    <canvas id="chart-barras"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Gráficos de Calidad de Servicio -->
+                        <div class="graficos-secundarios">
+                            <div class="grafico-card grande">
+                                <h3 class="grafico-titulo">Evaluación por Competencias</h3>
+                                <div class="grafico-wrapper">
+                                    <canvas id="chart-radar"></canvas>
+                                </div>
+                            </div>
+
+                            <div class="grafico-card grande">
+                                <h3 class="grafico-titulo">Calificaciones Promedio por Categoría</h3>
+                                <div class="grafico-wrapper">
+                                    <canvas id="chart-horizontal"></canvas>
+                                </div>
+                            </div>
+
+                            <div class="grafico-card">
+                                <h3 class="grafico-titulo">Distribución General de Calificaciones</h3>
+                                <div class="grafico-wrapper">
+                                    <canvas id="chart-distribution"></canvas>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
