@@ -15,6 +15,22 @@
         "controller": "ReportesCalidadServicio",
         "action": ":action"
       }
-    }
+    },
+    {
+        "route": "/ReportesCalidadServicio/action/:action",
+        "method": "post",
+        "params": {
+          "controller": "CCustomerSurvey",
+          "action": ":action"
+        }
+      },
+      {
+        "route": "/ReportesCalidadServicio/action/:action",
+        "method": "get",
+        "params": {
+          "controller": "CCustomerSurvey",
+          "action": ":action"
+        }
+      }
   ]
 }

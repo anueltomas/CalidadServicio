@@ -2,13 +2,21 @@
     "routes": [
         {
             "route": "reportes-calidad-servicio",
-            "controller": "reporteCalidadServicio",
+            "controller": "reportesCalidadServicio",
             "action": "index"
         },
         {
             "route": "reportes-calidad-servicio",
-            "controller": "reporteCalidadServicio",
+            "controller": "reportesCalidadServicio",
             "action": "reports"
+        },
+        {
+            "route": "reportes-calidad-servicio",
+            "controller": "reporteCalidadServicio",
+                "params": {
+                "controller": "reportes-calidad-servicio:controllers/reportesCalidadServicio",
+                "action": "index"
+            }
         }
     ]
 }

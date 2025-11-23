@@ -2,12 +2,40 @@ define('reportes-calidad-servicio:controllers/reportesCalidadServicio', ['contro
 
     return Base.extend({
         
-        checkAccess: function () {
-            return true;
-        },
+        defaultAction: 'index',
         
         actionIndex: function () {
-        this.main('reportes-calidad-servicio:views/principal', {}, view => view.render());
+            console.log('🔍 Controlador CCustomerSurvey - actionIndex ejecutado');
+            console.log('🔍 Opciones recibidas:', this.options);
+            
+            // Enviar parámetros explícitamente a la vista
+            const viewParams = {
+                scope: 'CCustomerSurvey',
+                initialStats: this.getDefaultStats(),
+                // Incluir todos los parámetros importantes
+                params: this.options.params || {},
+                model: this.options.model || null,
+                collection: this.options.collection || null
+            };
+            
+            console.log('📤 Enviando parámetros a la vista:', viewParams);
+            
+            this.main('reportes-calidad-servicio:views/principal', viewParams);
+        },
+
+        getDefaultStats: function () {
+            return {
+                totalEncuestas: 0,
+                satisfaccionPromedio: 0,
+                porcentajeRecomendacion: 0,
+                tiposOperacion: 0,
+                distribucionOperaciones: {
+                    'Venta': 0,
+                    'Compra': 0, 
+                    'Alquiler': 0
+                },
+                asesoresDestacados: []
+            };
         },
 
         /* 

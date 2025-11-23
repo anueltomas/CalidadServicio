@@ -4,626 +4,662 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
 
         template: 'reportes-calidad-servicio:principal',
 
-        events: {
-            'click [data-action="import"]': function() {
-                this.actionImport();
-            },
-            'click [data-action="refresh"]': function() {
-                this.loadStatistics();
-            }
-        },
-
-        data: function () {
-            return {
-                stats: this.stats || {},
-                hasData: this.hasData,
-                isLoading: this.isLoading
-            };
-        },
-
         setup: function () {
-            this.stats = {};
+            console.log('🚀 Iniciando vista de Calidad de Servicio');
+            
             this.hasData = false;
             this.isLoading = true;
+            this.stats = {
+                totalEncuestas: 0,
+                satisfaccionPromedio: 0,
+                porcentajeRecomendacion: 0,
+                tiposOperacion: 0,
+                distribucionOperaciones: {},
+                asesoresDestacados: []
+            };
             
+            this.initMappings();
             this.loadStatistics();
         },
 
         afterRender: function () {
-            if (this.hasData && !this.isLoading) {
-                this.renderCharts();
+            console.log('✅ Vista renderizada');
+            this.showLoadingState();
+            this.setupEventListeners();
+        },
+
+        initMappings: function() {
+            console.log('🔧 Inicializando mapeos según orden de campos de la BD...');
+            
+            // ✅ ORDEN EXACTO DE CAMPOS EN LA BASE DE DATOS
+            this.camposOrdenBD = [
+                'created_at',           // Marca temporal
+                'email_address',        // Correo
+                'operation_type',       // 1. ¿Qué tipo de operación realizó?
+                'assigned_user_id',     // ID Asesor
+                'communicationEffectiveness',  // Efectividad y regularidad en la Comunicación
+                'legal_advice',         // Asesoría legal, fiscal y financiera
+                'personal_presentation', // Presentación Personal e Imagen
+                'detail_management',    // Manejo de los detalles
+                'punctuality',          // Puntualidad
+                'commitment_level',     // Nivel de compromiso en el servicio
+                'problem_solving',      // Solución de problemas
+                'full_support',         // Acompañamiento de inicio a fin
+                'unexpected_situations', // Manejo de situaciones Imprevistas
+                'negotiation_timing',   // Manejo de los tiempos de la negociación
+                'general_advisor_rating', // 4. En general, ¿Cómo percibió el servicio...
+                'office_rating',        // 5. ¿Cómo califica el servicio prestado por la oficina Century 21?
+                'recommendation',       // 6. ¿Recomendaría el servicio de Century 21 a un amigo/familiar?
+                'contact_medium',       // 7. ¿Por cuál medio se puso en contacto...
+                'additional_feedback',  // 8. Sugerencia adicional...
+                'client_name'           // 10. Escriba su Primer Nombre y Primer Apellido.
+            ];
+            
+            // Mapeo de nombres CSV a nombres de campos internos
+            this.csvToFieldMapping = {
+                'Marca temporal': 'createdAt',
+                'Correo': 'emailAddress',
+                '1. ¿Qué tipo de operación realizó?': 'operationType',
+                'ID Asesor': 'assignedUserId',
+                'Efectividad y regularidad en la Comunicación': 'communicationEffectiveness',
+                'Asesoría legal, fiscal y financiera': 'legalAdvice',
+                'Presentación Personal e Imagen': 'personalPresentation',
+                'Manejo de los detalles': 'detailManagement',
+                'Puntualidad': 'punctuality',
+                'Nivel de compromiso en el servicio': 'commitmentLevel',
+                'Solución de problemas': 'problemSolving',
+                'Acompañamiento de inicio a fin': 'fullSupport',
+                'Manejo de situaciones Imprevistas': 'unexpectedSituations',
+                'Manejo de los tiempos de la negociación': 'negotiationTiming',
+                '4. En general, ¿Cómo percibió el servicio prestado por el Asesor Inmobiliario de Century21': 'generalAdvisorRating',
+                '5. ¿Cómo califica el servicio prestado por la oficina Century 21?': 'officeRating',
+                '6. ¿Recomendaría el servicio de Century 21 a un amigo/familiar?': 'recommendation',
+                '7. ¿Por cuál medio se puso en contacto con la oficina/asesor Century 21?': 'contactMedium',
+                '8. Sugerencia adicional para mejorar el servicio asesor/oficina Century 21 . Estamos seguros de que hay algo más que le hubiera gustado que hiciera asesor/oficina por usted.': 'additionalFeedback',
+                '10. Escriba su Primer Nombre y Primer Apellido.': 'clientName'
+            };
+            
+            this.contactMediumMapping = {
+                'Contacto Directo': '0',
+                'Familiar / Amigo': '1', 
+                'Página Web Century21': '2',
+                'Mercado Libre': '3',
+                'Instagram': '4',
+                'Facebook / Marketplace': '5',
+                'Whatsapp': '6',
+                'Estados de Whatsapp': '7',
+                'Valla o Rótulo de Venta/Alquiler': '8',
+                'Visita en oficina': '9',
+                'Otro': 'contactMediumOther'
+            };
+
+            // ✅ Campos que usan escala 0-4 (donde 5 debe convertirse a 4)
+            this.fieldsScale0to4 = [
+                'communicationEffectiveness',
+                'legalAdvice', 
+                'personalPresentation',
+                'detailManagement',
+                'punctuality',
+                'commitmentLevel',
+                'problemSolving',
+                'fullSupport',
+                'unexpectedSituations',
+                'negotiationTiming',
+                'officeRating'
+            ];
+
+            console.log('✅ Mapeos inicializados correctamente');
+        },
+
+        setupEventListeners: function() {
+            const fileInput = this.$el.find('#csv-file-input')[0];
+            const fileName = this.$el.find('#file-name')[0];
+            
+            if (fileInput && fileName) {
+                fileInput.addEventListener('change', function() {
+                    if (this.files && this.files[0]) {
+                        fileName.textContent = this.files[0].name;
+                        fileName.classList.add('has-file');
+                    } else {
+                        fileName.textContent = 'No se ha seleccionado ningún archivo';
+                        fileName.classList.remove('has-file');
+                    }
+                });
+            }
+
+            this.$el.find('[data-action="import"]').off('click').on('click', () => {
+                this.actionImport();
+            });
+
+            this.$el.find('[data-action="refresh"]').off('click').on('click', () => {
+                this.loadStatistics();
+            });
+        },
+
+        validateAndTransformCSV: function(csvData) {
+            try {
+                console.log('🔄 Procesando CSV con validación estricta...');
+                
+                const lines = csvData.split('\n').filter(line => line.trim());
+                if (lines.length < 2) {
+                    return {
+                        success: false,
+                        data: [],
+                        errors: ['❌ El archivo CSV está vacío o solo contiene encabezados.'],
+                        stats: { total: 0, valid: 0, invalid: 1 }
+                    };
+                }
+                
+                const headers = this.parseCSVLine(lines[0], null);
+                console.log('📋 Headers encontrados:', headers);
+
+                const columnMapping = this.findColumnsInCSV(headers);
+                console.log('🎯 Mapeo de columnas:', columnMapping);
+
+                if (!columnMapping.clientName) {
+                    return {
+                        success: false,
+                        data: [],
+                        errors: [
+                            '❌ COLUMNA CRÍTICA FALTANTE:',
+                            '• No se encontró: "10. Escriba su Primer Nombre y Primer Apellido."',
+                            '• Esta columna es obligatoria para la importación'
+                        ],
+                        stats: { total: 0, valid: 0, invalid: 1 }
+                    };
+                }
+
+                const transformedData = [];
+                const warnings = [];
+                const scaleCorrections = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    
+                    try {
+                        const originalRow = this.parseCSVLine(lines[i], headers);
+                        const transformResult = this.transformRow(originalRow, columnMapping, i + 1);
+                        
+                        if (transformResult.corrections.length > 0) {
+                            scaleCorrections.push(...transformResult.corrections);
+                        }
+                        
+                        transformedData.push(transformResult.data);
+                        
+                    } catch (error) {
+                        warnings.push(`Línea ${i + 1}: ${error.message}`);
+                    }
+                }
+
+                console.log(`✅ Procesados ${transformedData.length} registros`);
+                console.log(`🔧 Aplicadas ${scaleCorrections.length} correcciones de escala`);
+                
+                return {
+                    success: true,
+                    data: transformedData,
+                    errors: warnings,
+                    scaleCorrections: scaleCorrections,
+                    stats: {
+                        total: lines.length - 1,
+                        valid: transformedData.length,
+                        invalid: warnings.length,
+                        corrections: scaleCorrections.length
+                    }
+                };
+
+            } catch (error) {
+                console.error('💥 Error crítico:', error);
+                return {
+                    success: false,
+                    data: [],
+                    errors: [`❌ ERROR: ${error.message}`],
+                    stats: { total: 0, valid: 0, invalid: 1 }
+                };
             }
         },
 
-        loadStatistics: function () {
-            this.isLoading = true;
-            this.reRender();
+        findColumnsInCSV: function(headers) {
+            const mapping = {};
+            
+            // Buscar cada columna del CSV
+            Object.keys(this.csvToFieldMapping).forEach(csvColumn => {
+                const fieldName = this.csvToFieldMapping[csvColumn];
+                const foundColumn = headers.find(h => h.trim() === csvColumn);
+                
+                if (foundColumn) {
+                    mapping[fieldName] = foundColumn;
+                    console.log(`✅ ${fieldName} → "${foundColumn}"`);
+                } else {
+                    console.warn(`⚠️ ${fieldName} → NO encontrado (buscaba "${csvColumn}")`);
+                }
+            });
+            
+            return mapping;
+        },
 
-            Espo.Ajax.getRequest('ReportesCalidadServicio/action/getStats')
-                .then((response) => {
-                    this.stats = response;
-                    this.hasData = response.totalEncuestas > 0;
-                    this.isLoading = false;
-                    this.reRender();
-                })
-                .catch((xhr) => {
-                    console.error('Error loading stats:', xhr);
-                    Espo.Ui.error('Error al cargar estadísticas');
-                    this.isLoading = false;
-                    this.reRender();
-                });
+        parseCSVLine: function(line, headers) {
+            const values = [];
+            let currentValue = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    values.push(currentValue.trim());
+                    currentValue = '';
+                } else {
+                    currentValue += char;
+                }
+            }
+            values.push(currentValue.trim());
+            
+            if (!headers) {
+                return values;
+            }
+            
+            const result = {};
+            headers.forEach((header, index) => {
+                result[header] = values[index] || '';
+            });
+            
+            return result;
+        },
+
+        // ✅ TRANSFORMACIÓN COMPLETA SIGUIENDO ORDEN DE BD
+        transformRow: function(csvRow, columnMapping, lineNumber) {
+            const transformed = {};
+            const corrections = [];
+            
+            console.log(`🔄 Transformando línea ${lineNumber}...`);
+
+            // ============================================
+            // PROCESAR CADA CAMPO EN EL ORDEN CORRECTO
+            // ============================================
+
+            // 1. created_at (Marca temporal)
+            if (columnMapping.createdAt && csvRow[columnMapping.createdAt]) {
+                const value = csvRow[columnMapping.createdAt].trim();
+                if (value) {
+                    transformed.createdAt = this.transformDate(value);
+                    console.log(`  ✅ createdAt: ${transformed.createdAt}`);
+                }
+            }
+
+            // 2. email_address (Correo)
+            if (columnMapping.emailAddress && csvRow[columnMapping.emailAddress]) {
+                const value = csvRow[columnMapping.emailAddress].trim();
+                if (value) {
+                    transformed.emailAddress = value;
+                    console.log(`  ✅ emailAddress: ${value}`);
+                }
+            }
+
+            // 3. operation_type (Tipo de operación)
+            if (columnMapping.operationType && csvRow[columnMapping.operationType]) {
+                const value = csvRow[columnMapping.operationType].trim();
+                if (value) {
+                    transformed.operationType = value;
+                    console.log(`  ✅ operationType: ${value}`);
+                }
+            }
+
+            // 4. assigned_user_id (ID Asesor)
+            if (columnMapping.assignedUserId && csvRow[columnMapping.assignedUserId]) {
+                const value = csvRow[columnMapping.assignedUserId].trim();
+                if (value) {
+                    transformed.assignedUserId = value;
+                    console.log(`  ✅ assignedUserId: ${value}`);
+                }
+            }
+
+            // 5-15. Campos de calificación 0-4 CON CORRECCIÓN 5→4
+            const ratingFields = [
+                'communicationEffectiveness',
+                'legalAdvice',
+                'personalPresentation',
+                'detailManagement',
+                'punctuality',
+                'commitmentLevel',
+                'problemSolving',
+                'fullSupport',
+                'unexpectedSituations',
+                'negotiationTiming',
+                'officeRating'
+            ];
+
+            ratingFields.forEach(field => {
+                if (columnMapping[field] && csvRow[columnMapping[field]]) {
+                    const value = csvRow[columnMapping[field]].trim();
+                    if (value !== '' && value !== 'NA' && value !== 'N/A') {
+                        const numericValue = parseInt(value);
+                        if (!isNaN(numericValue)) {
+                            if (numericValue === 5) {
+                                transformed[field] = '4';
+                                corrections.push(`Línea ${lineNumber}, ${field}: 5 → 4`);
+                                console.log(`  🔧 ${field}: 5 → 4 (CORREGIDO)`);
+                            } else if (numericValue >= 0 && numericValue <= 4) {
+                                transformed[field] = numericValue.toString();
+                                console.log(`  ✅ ${field}: ${numericValue}`);
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 16. general_advisor_rating (escala 1-5, NO requiere corrección)
+            if (columnMapping.generalAdvisorRating && csvRow[columnMapping.generalAdvisorRating]) {
+                const value = csvRow[columnMapping.generalAdvisorRating].trim();
+                if (value !== '' && value !== 'NA' && value !== 'N/A') {
+                    const numericValue = parseInt(value);
+                    if (!isNaN(numericValue) && numericValue >= 1 && numericValue <= 5) {
+                        transformed.generalAdvisorRating = numericValue.toString();
+                        console.log(`  ✅ generalAdvisorRating: ${numericValue}`);
+                    }
+                }
+            }
+
+            // 17. recommendation (SI = 1, NO = 0)
+            if (columnMapping.recommendation && csvRow[columnMapping.recommendation]) {
+                const value = csvRow[columnMapping.recommendation].trim().toLowerCase();
+                if (value) {
+                    // ✅ VALIDACIÓN ESTRICTA
+                    const positiveValues = ['si lo recomendaría', 'si', 'sí', 'yes', '1', 'true'];
+                    transformed.recommendation = positiveValues.includes(value) ? '1' : '0';
+                    console.log(`  ✅ recommendation: "${csvRow[columnMapping.recommendation]}" → ${transformed.recommendation}`);
+                }
+            }
+
+            // 18. contact_medium (procesamiento especial)
+            if (columnMapping.contactMedium && csvRow[columnMapping.contactMedium]) {
+                const value = csvRow[columnMapping.contactMedium].trim();
+                if (value) {
+                    const contactData = this.transformContactMedium(value);
+                    transformed.contactMedium = contactData.contactMedium;
+                    transformed.contactMediumOther = contactData.contactMediumOther;
+                    console.log(`  ✅ contactMedium: ${JSON.stringify(contactData)}`);
+                }
+            }
+
+            // 19. additional_feedback (texto libre)
+            if (columnMapping.additionalFeedback && csvRow[columnMapping.additionalFeedback]) {
+                const value = csvRow[columnMapping.additionalFeedback].trim();
+                if (value) {
+                    transformed.additionalFeedback = value;
+                    console.log(`  ✅ additionalFeedback: ${value.substring(0, 50)}...`);
+                }
+            }
+
+            // 20. client_name (OBLIGATORIO)
+            if (columnMapping.clientName && csvRow[columnMapping.clientName]) {
+                const value = csvRow[columnMapping.clientName].trim();
+                if (value) {
+                    transformed.clientName = value;
+                    console.log(`  ✅ clientName: ${value}`);
+                }
+            }
+
+            // ✅ Agregar estatus por defecto
+            transformed.estatus = '2';
+
+            console.log(`✅ Línea ${lineNumber} transformada correctamente`);
+
+            return {
+                data: transformed,
+                corrections: corrections
+            };
+        },
+
+        transformContactMedium: function(value) {
+            const mapped = this.contactMediumMapping[value];
+            if (mapped === 'contactMediumOther') {
+                return { contactMedium: ['9'], contactMediumOther: value };
+            } else if (mapped) {
+                return { contactMedium: [mapped], contactMediumOther: '' };
+            } else {
+                return { contactMedium: ['9'], contactMediumOther: value };
+            }
+        },
+
+        transformDate: function(value) {
+            try {
+                if (!value || value === 'NA' || value === 'N/A') return null;
+                const [datePart, timePart] = value.split(' ');
+                const [month, day, year] = datePart.split('/');
+                const fullYear = year.length === 2 ? '20' + year : year;
+                const dateString = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}${timePart ? 'T' + timePart : ''}`;
+                const date = new Date(dateString);
+                return !isNaN(date.getTime()) ? date.toISOString() : null;
+            } catch (e) {
+                return null;
+            }
         },
 
         actionImport: function() {
-            var fileInput = this.$el.find('#csv-file-input')[0];
+            const fileInput = this.$el.find('#csv-file-input')[0];
             
-            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-                Espo.Ui.warning('Por favor selecciona un archivo CSV primero.');
+            if (!fileInput?.files?.[0]) {
+                Espo.Ui.warning('Por favor selecciona un archivo CSV primero.', null, 8000);
                 return;
             }
             
-            var file = fileInput.files[0];
+            const file = fileInput.files[0];
             
             if (!file.name.endsWith('.csv')) {
-                Espo.Ui.error('El archivo debe ser un CSV.');
+                Espo.Ui.error('❌ El archivo debe ser CSV (.csv)', null, 10000);
                 return;
             }
             
-            Espo.Ui.notify('Procesando CSV...', 'info');
+            console.log('📤 Procesando archivo:', file.name);
+            Espo.Ui.notify('🔍 Validando estructura del CSV...', 'info', 60000);
             this.wait(true);
             
-            var reader = new FileReader();
+            const reader = new FileReader();
             
-            reader.onload = function(e) {
-                var contenidoCSV = e.target.result;
-                this.iniciarProcesoDeCarga(contenidoCSV);
-            }.bind(this);
+            reader.onload = (e) => {
+                try {
+                    const contenidoCSV = e.target.result;
+                    const validationResult = this.validateAndTransformCSV(contenidoCSV);
+                    
+                    if (!validationResult.success) {
+                        let errorMessage = '❌ ERROR EN CSV<br><br>';
+                        errorMessage += validationResult.errors.join('<br>');
+                        Espo.Ui.error(errorMessage, null, 15000);
+                        this.wait(false);
+                        return;
+                    }
+                    
+                    let message = '✅ CSV VALIDADO CORRECTAMENTE<br><br>';
+                    message += `<strong>Resumen:</strong><br>`;
+                    message += `• Total registros: ${validationResult.stats.total}<br>`;
+                    message += `• Registros válidos: ${validationResult.stats.valid}<br>`;
+                    
+                    if (validationResult.scaleCorrections && validationResult.scaleCorrections.length > 0) {
+                        message += `• <strong>Correcciones 5→4: ${validationResult.scaleCorrections.length}</strong><br>`;
+                    }
+                    
+                    Espo.Ui.success(message, null, 15000);
+                    this.iniciarProcesoDeCarga(validationResult.data);
+                    
+                } catch (error) {
+                    console.error('💥 Error:', error);
+                    Espo.Ui.error('❌ ERROR: ' + error.message, null, 10000);
+                    this.wait(false);
+                }
+            };
             
-            reader.onerror = function() {
-                Espo.Ui.error('Error al leer el archivo.');
+            reader.onerror = () => {
+                Espo.Ui.error('❌ No se pudo leer el archivo', null, 10000);
                 this.wait(false);
-            }.bind(this);
+            };
             
             reader.readAsText(file, 'UTF-8');
         },
 
-        iniciarProcesoDeCarga: async function(contenidoCSV) {
+        iniciarProcesoDeCarga: async function(encuestasValidadas) {
             try {
-                console.log('📊 Iniciando procesamiento CSV...');
-                var todasLasLineas = contenidoCSV.split('\n').filter(l => l.trim());
+                console.log('📤 Enviando datos al servidor...');
+                console.log('📋 Primer registro:', JSON.stringify(encuestasValidadas[0], null, 2));
                 
-                console.log('Total de líneas en CSV:', todasLasLineas.length);
-                
-                if (todasLasLineas.length < 2) {
-                    Espo.Ui.error('El archivo CSV está vacío o no tiene datos.');
-                    this.wait(false);
-                    return;
+                if (!encuestasValidadas || encuestasValidadas.length === 0) {
+                    throw new Error('No hay datos válidos para importar');
                 }
                 
-                var headers = this.parsearLineaCSV(todasLasLineas[0]);
-                var lineasDeDatos = todasLasLineas.slice(1);
-
-                console.log('Headers detectados:', headers);
-                console.log('Líneas de datos a procesar:', lineasDeDatos.length);
-
-                // Extraer preguntas del CSV
-                const preguntasDelCSV = this.extraerPreguntasDeEncuesta(headers);
-                console.log('Mapeo de preguntas:', preguntasDelCSV);
+                Espo.Ui.notify('📤 Importando datos...', 'info', 120000);
                 
-                // Procesar encuestas
-                const { encuestasValidas, erroresDeFila } = this.procesarEncuestasCSV(lineasDeDatos, headers, preguntasDelCSV);
-
-                console.log('Resultado del procesamiento:');
-                console.log('- Encuestas válidas:', encuestasValidas.length);
-                console.log('- Errores de fila:', erroresDeFila.length);
-
-                if (erroresDeFila.length > 0) {
-                    // CORRECCIÓN: usar let en lugar de const
-                    let mensajeError = 'Algunas filas del CSV fueron omitidas por errores:<br>' + erroresDeFila.slice(0, 10).join('<br>');
-                    if (erroresDeFila.length > 10) {
-                        mensajeError += `<br>... y ${erroresDeFila.length - 10} errores más`;
-                    }
-                    Espo.Ui.warning(mensajeError, 10000);
-                }
-
-                if (encuestasValidas.length === 0) {
-                    Espo.Ui.error('No se encontraron filas de datos válidas en el archivo CSV.');
-                    this.wait(false);
-                    return;
-                }
-
-                console.log('Primeras 3 encuestas válidas:', encuestasValidas.slice(0, 3));
-
-                // Verificar duplicados antes de guardar
-                const encuestasUnicas = this.eliminarDuplicados(encuestasValidas);
-                console.log(`Encuestas después de eliminar duplicados: ${encuestasUnicas.length} (se eliminaron ${encuestasValidas.length - encuestasUnicas.length} duplicados)`);
-
-                // Guardar en la base de datos
-                await this.guardarEncuestasEnBD(encuestasUnicas);
-                
-                Espo.Ui.success(`Se importaron ${encuestasUnicas.length} encuestas exitosamente`);
-                this.wait(false);
-                this.loadStatistics(); // Recargar estadísticas
-
-            } catch (error) {
-                console.error('Error en el proceso de carga:', error);
-                // CORRECCIÓN: usar let en lugar de const
-                let mensajeError = 'Error al procesar el archivo CSV: ' + error.message;
-                Espo.Ui.error(mensajeError);
-                this.wait(false);
-            }
-        },
-
-        parsearLineaCSV: function(linea) {
-            try {
-                console.log('Parseando línea CSV:', linea);
-                
-                // Si ya es un array, devolverlo
-                if (Array.isArray(linea)) return linea;
-                
-                // Si es string, parsear CSV
-                if (typeof linea === 'string') {
-                    const resultados = [];
-                    let enComillas = false;
-                    let campoActual = '';
-                    
-                    for (let i = 0; i < linea.length; i++) {
-                        const char = linea[i];
-                        
-                        if (char === '"') {
-                            enComillas = !enComillas;
-                        } else if (char === ',' && !enComillas) {
-                            resultados.push(campoActual.trim());
-                            campoActual = '';
-                        } else {
-                            campoActual += char;
-                        }
-                    }
-                    
-                    // Añadir el último campo
-                    resultados.push(campoActual.trim());
-                    console.log('Campos parseados:', resultados);
-                    return resultados;
-                }
-                
-                return [];
-            } catch (error) {
-                console.error('Error parseando línea CSV:', error);
-                return [];
-            }
-        },
-
-        extraerPreguntasDeEncuesta: function(headers) {
-            const preguntas = {};
-            
-            // Mapear las preguntas según la estructura del CSV
-            const mapeoPreguntas = {
-                'CLA': 'ciudad',
-                'ID Oficina': 'idOficina',
-                'Oficina': 'oficina',
-                'Marca temporal': 'fechaEncuesta',
-                'Correo': 'correo',
-                '1. ¿Qué tipo de operación realizó?': 'tipoOperacion',
-                'ID Asesor': 'idAsesor',
-                '2. Escriba el nombre del Asesor Inmobiliario que le prestó el servicio.': 'nombreAsesor',
-                'Asesoría legal, fiscal y financiera': 'puntuacionAsesoriaLegal',
-                'Presentación Personal e Imagen': 'puntuacionPresentacion',
-                'Manejo de los detalles': 'puntuacionManejoDetalles',
-                'Puntualidad': 'puntuacionPuntualidad',
-                'Nivel de compromiso en el servicio': 'puntuacionCompromiso',
-                'Solución de problemas': 'puntuacionSolucionProblemas',
-                'Acompañamiento de inicio a fin': 'puntuacionAcompanamiento',
-                'Manejo de situaciones Imprevistas': 'puntuacionSituacionesImprevistas',
-                'Manejo de los tiempos de la negociación': 'puntuacionManejoTiempos',
-                '4. En general, ¿Cómo percibió el servicio prestado por el Asesor Inmobiliario de Century21': 'puntuacionGeneralAsesor',
-                '5. ¿Cómo califica el servicio prestado por la oficina Century 21?': 'puntuacionOficina',
-                '6. ¿Recomendaría el servicio de Century 21 a un amigo/familiar?': 'recomendacion',
-                '7. ¿Por cuál medio se puso en contacto con la oficina/asesor Century 21?': 'medioContacto',
-                '8. Sugerencia adicional para mejorar el servicio asesor/oficina Century 21 . Estamos seguros de que hay algo más que le hubiera gustado que hiciera asesor/oficina por usted.': 'sugerencias',
-                '9. Por favor Indique su fecha de cumpleaños.': 'fechaCumpleanos',
-                '10. Escriba su Primer Nombre y Primer Apellido.': 'nombreCliente'
-            };
-
-            headers.forEach((header, index) => {
-                if (mapeoPreguntas[header]) {
-                    preguntas[mapeoPreguntas[header]] = index;
-                }
-            });
-
-            console.log('Preguntas extraídas:', preguntas);
-            return preguntas;
-        },
-
-        procesarEncuestasCSV: function(lineasDeDatos, headers, preguntas) {
-            const encuestasValidas = [];
-            const erroresDeFila = [];
-
-            console.log('🔍 Iniciando procesamiento de encuestas...');
-            console.log('Total de líneas a procesar:', lineasDeDatos.length);
-            console.log('Headers:', headers);
-            console.log('Mapeo de preguntas:', preguntas);
-
-            lineasDeDatos.forEach((linea, index) => {
-                try {
-                    console.log(`\n--- Procesando línea ${index + 1} ---`);
-                    console.log('Línea original:', linea);
-
-                    const campos = this.parsearLineaCSV(linea);
-                    console.log('Campos parseados:', campos);
-                    console.log('Número de campos:', campos.length);
-                    console.log('Número de preguntas esperadas:', Object.keys(preguntas).length);
-
-                    // Verificación más flexible de número de campos
-                    if (campos.length < Object.keys(preguntas).length - 5) { // Más flexible
-                        console.warn(`Advertencia: Línea ${index + 1} tiene menos campos de lo esperado`);
-                        // Continuar procesamiento para ver qué datos podemos extraer
-                    }
-
-                    // Crear encuesta con valores por defecto más robustos
-                    const encuesta = {
-                        // Campo CLA
-                        cla: this.obtenerValorCampo(campos, preguntas.cla, ''),
-                        
-                        // Información de oficina
-                        idOficina: this.parsearEntero(this.obtenerValorCampo(campos, preguntas.idOficina, '0')),
-                        oficina: this.obtenerValorCampo(campos, preguntas.oficina, ''),
-                        
-                        // Información temporal
-                        marcaTemporal: this.parsearFecha(this.obtenerValorCampo(campos, preguntas.fechaEncuesta)) || new Date(),
-                        
-                        // INFORMACIÓN DEL CLIENTE - CORREO SIEMPRE INCLUIDO
-                        correo: this.obtenerValorCampo(campos, preguntas.correo, null),
-                        nombreCliente: this.obtenerValorCampo(campos, preguntas.nombreCliente, ''),
-                        fechaCumpleanos: this.parsearFechaCumpleanos(this.obtenerValorCampo(campos, preguntas.fechaCumpleanos)),
-                        
-                        // Información de la operación
-                        tipoOperacion: this.validarTipoOperacion(this.obtenerValorCampo(campos, preguntas.tipoOperacion, 'Compra')),
-                        
-                        // Información del asesor
-                        idAsesor: this.parsearEntero(this.obtenerValorCampo(campos, preguntas.idAsesor, '0')),
-                        nombreAsesor: this.obtenerValorCampo(campos, preguntas.nombreAsesor, ''),
-                        
-                        // Evaluaciones (con valores por defecto más flexibles)
-                        evaluacionGeneral: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionGeneralAsesor, '0')),
-                        asesoriaLegal: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionAsesoriaLegal, '0')),
-                        presentacionPersonal: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionPresentacion, '0')),
-                        manejoDetalles: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionManejoDetalles, '0')),
-                        puntualidad: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionPuntualidad, '0')),
-                        nivelCompromiso: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionCompromiso, '0')),
-                        solucionProblemas: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionSolucionProblemas, '0')),
-                        acompanamiento: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionAcompanamiento, '0')),
-                        manejoImprevistas: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionSituacionesImprevistas, '0')),
-                        manejoTiempos: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionManejoTiempos, '0')),
-                        percepcionGeneral: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionGeneralAsesor, '0')),
-                        calificacionOficina: this.parsearPuntuacion(this.obtenerValorCampo(campos, preguntas.puntuacionOficina, '0')),
-                        
-                        // Recomendación y comentarios
-                        recomendaria: this.parsearBooleano(this.obtenerValorCampo(campos, preguntas.recomendacion, 'false')),
-                        medioContacto: this.obtenerValorCampo(campos, preguntas.medioContacto, ''),
-                        sugerencias: this.obtenerValorCampo(campos, preguntas.sugerencias, '')
-                    };
-
-                    console.log('Encuesta procesada:', encuesta);
-
-                    // Validaciones - nombreCliente SÍ es requerido
-                    const erroresValidacion = this.validarEncuesta(encuesta);
-                    if (erroresValidacion.length > 0) {
-                        console.warn(`Errores validación línea ${index + 1}:`, erroresValidacion);
-                        erroresDeFila.push(`Línea ${index + 1}: ${erroresValidacion.join(', ')}`);
-                    } else {
-                        console.log(`✅ Línea ${index + 1} VÁLIDA`);
-                        encuestasValidas.push(encuesta);
-                    }
-
-                } catch (error) {
-                    console.error(`❌ Error crítico línea ${index + 1}:`, error);
-                    erroresDeFila.push(`Línea ${index + 1}: Error de formato - ${error.message}`);
-                }
-            });
-
-            console.log('\n=== RESULTADO FINAL DEL PROCESAMIENTO ===');
-            console.log('Encuestas válidas:', encuestasValidas.length);
-            console.log('Errores:', erroresDeFila.length);
-            
-            if (encuestasValidas.length > 0) {
-                console.log('Primeras 3 encuestas válidas:', encuestasValidas.slice(0, 3));
-            }
-
-            return { encuestasValidas, erroresDeFila };
-        },
-
-        // MÉTODOS AUXILIARES MEJORADOS
-        obtenerValorCampo: function(campos, indice, valorPorDefecto = '') {
-            if (indice === undefined || indice === null || indice < 0) {
-                return valorPorDefecto;
-            }
-            if (campos[indice] === undefined || campos[indice] === null) {
-                return valorPorDefecto;
-            }
-            const valor = campos[indice].toString().trim();
-            return valor === '' ? valorPorDefecto : valor;
-        },
-
-        parsearEntero: function(valor) {
-            if (valor === null || valor === undefined) return 0;
-            const num = parseInt(valor.toString().replace(/[^\d-]/g, ''));
-            return isNaN(num) ? 0 : num;
-        },
-
-        validarEncuesta: function(encuesta) {
-            const errores = [];
-            
-            // CAMPOS REQUERIDOS - nombreCliente SÍ es requerido
-            if (!encuesta.oficina || encuesta.oficina.trim() === '') {
-                errores.push('oficina es requerida');
-            }
-            
-            if (!encuesta.tipoOperacion || encuesta.tipoOperacion.trim() === '') {
-                errores.push('tipoOperacion es requerido');
-            }
-            
-            if (!encuesta.nombreAsesor || encuesta.nombreAsesor.trim() === '') {
-                errores.push('nombreAsesor es requerido');
-            }
-            
-            // nombreCliente SÍ es requerido
-            if (!encuesta.nombreCliente || encuesta.nombreCliente.trim() === '') {
-                errores.push('nombreCliente es requerido');
-            }
-            
-            return errores;
-        },
-
-        // MÉTODO PARA ELIMINAR DUPLICADOS (SE MANTIENE)
-        eliminarDuplicados: function(encuestas) {
-            const vistas = new Set();
-            const encuestasUnicas = [];
-            const duplicados = [];
-
-            encuestas.forEach(encuesta => {
-                // Crear una clave única basada en varios campos para identificar duplicados
-                const clave = this.generarClaveUnica(encuesta);
-                
-                if (!vistas.has(clave)) {
-                    vistas.add(clave);
-                    encuestasUnicas.push(encuesta);
-                } else {
-                    duplicados.push(encuesta);
-                    console.log('📝 Encuesta duplicada detectada:', encuesta);
-                }
-            });
-
-            if (duplicados.length > 0) {
-                console.log(`🔄 Se encontraron ${duplicados.length} encuestas duplicadas`);
-                Espo.Ui.info(`Se detectaron ${duplicados.length} encuestas duplicadas que serán omitidas`);
-            }
-
-            return encuestasUnicas;
-        },
-
-        generarClaveUnica: function(encuesta) {
-            // Combinar varios campos para crear una clave única
-            // Esto evita duplicados basados en la misma combinación de datos
-            const camposUnicos = [
-                encuesta.correo || 'sin-correo',
-                encuesta.nombreCliente || 'sin-nombre',
-                encuesta.nombreAsesor || 'sin-asesor',
-                encuesta.oficina || 'sin-oficina',
-                encuesta.tipoOperacion || 'sin-operacion',
-                encuesta.marcaTemporal ? new Date(encuesta.marcaTemporal).toISOString().split('T')[0] : 'sin-fecha'
-            ];
-            
-            return camposUnicos.join('|');
-        },
-
-        validarTipoOperacion: function(tipoOperacion) {
-            const opcionesValidas = ['Compra', 'Venta', 'Alquiler'];
-            const tipo = (tipoOperacion || 'Compra').trim();
-            return opcionesValidas.includes(tipo) ? tipo : 'Compra';
-        },
-
-        parsearBooleano: function(valor) {
-            if (typeof valor === 'boolean') return valor;
-            if (typeof valor === 'string') {
-                const str = valor.toLowerCase().trim();
-                return str === 'true' || str === 'si' || str === 'sí' || str === '1' || str === 'yes' || str === 'verdadero';
-            }
-            if (typeof valor === 'number') return valor === 1;
-            return false;
-        },
-
-        parsearPuntuacion: function(valor) {
-            if (valor === null || valor === undefined) return 0;
-            const puntuacion = parseInt(valor.toString().replace(/[^\d]/g, ''));
-            if (isNaN(puntuacion)) return 0;
-            return Math.max(0, Math.min(5, puntuacion));
-        },
-
-        parsearFecha: function(fechaStr) {
-            if (!fechaStr) return new Date();
-            
-            try {
-                // Intentar varios formatos de fecha
-                const fecha = new Date(fechaStr);
-                if (!isNaN(fecha.getTime())) {
-                    return fecha;
-                }
-                
-                // Intentar formato dd/mm/yyyy
-                const partes = fechaStr.split('/');
-                if (partes.length === 3) {
-                    const dia = parseInt(partes[0]);
-                    const mes = parseInt(partes[1]) - 1;
-                    const año = parseInt(partes[2]);
-                    const fechaAlt = new Date(año, mes, dia);
-                    if (!isNaN(fechaAlt.getTime())) {
-                        return fechaAlt;
-                    }
-                }
-                
-                return new Date();
-            } catch (error) {
-                console.error('Error parseando fecha:', error);
-                return new Date();
-            }
-        },
-
-        parsearFechaCumpleanos: function(fechaStr) {
-            if (!fechaStr) return null;
-            
-            try {
-                // Intentar varios formatos de fecha
-                const fechaPartes = fechaStr.split('/');
-                if (fechaPartes.length === 3) {
-                    let año = parseInt(fechaPartes[2]);
-                    let mes = parseInt(fechaPartes[0]) - 1;
-                    let dia = parseInt(fechaPartes[1]);
-                    
-                    // Manejar años de 2 dígitos
-                    if (año < 100) {
-                        if (año < 50) {
-                            año += 2000;
-                        } else {
-                            año += 1900;
-                        }
-                    }
-                    
-                    const fecha = new Date(año, mes, dia);
-                    if (!isNaN(fecha.getTime())) {
-                        return fecha.toISOString().split('T')[0];
-                    }
-                }
-                
-                return null;
-            } catch (error) {
-                console.error('Error parseando fecha de cumpleaños:', error);
-                return null;
-            }
-        },
-
-        guardarEncuestasEnBD: async function(encuestasValidas) {
-            try {
-                console.log('💾 Iniciando guardado de datos...', encuestasValidas);
-                console.log('✅ Verificando que el campo "correo" esté presente en todas las encuestas:');
-                
-                // Verificar que todas las encuestas tengan el campo correo
-                encuestasValidas.forEach((encuesta, index) => {
-                    if (!encuesta.hasOwnProperty('correo')) {
-                        console.warn(`❌ Encuesta ${index} no tiene campo correo, agregándolo...`);
-                        encuesta.correo = null;
-                    }
-                    console.log(`Encuesta ${index} - correo:`, encuesta.correo);
-                });
-                
-                const result = await Espo.Ajax.postRequest('ReportesCalidadServicio/action/importarEncuestas', {
-                    encuestas: encuestasValidas,
-                    modo: 'actualizar' // Indicar que queremos actualizar duplicados
+                const result = await Espo.Ajax.postRequest('CCustomerSurvey/action/importarEncuestas', {
+                    encuestas: encuestasValidadas
                 });
                 
                 console.log('📨 Respuesta del servidor:', result);
                 
-                this.wait(false);
-                
                 if (result.success) {
-                    // CORRECCIÓN: usar let en lugar de const
-                    let mensaje = `✅ ${result.message || 'Importación completada'}<br>`;
-                    mensaje += `<strong>Resumen:</strong><br>`;
-                    mensaje += `• Total en CSV: ${result.total}<br>`;
-                    mensaje += `• Procesadas: ${result.procesadas}<br>`;
-                    mensaje += `• Duplicadas omitidas: ${result.duplicadas}<br>`;
-                    mensaje += `• Actualizadas: ${result.actualizadas || 0}<br>`;
-                    mensaje += `• Errores: ${result.errores.length}`;
+                    let mensaje = `✅ IMPORTACIÓN EXITOSA<br><br>`;
+                    mensaje += `<strong>Resultados:</strong><br>`;
+                    mensaje += `• Registros procesados: ${result.procesadas || 0}<br>`;
+                    mensaje += `• Duplicados omitidos: ${result.duplicadas || 0}<br>`;
+                    mensaje += `• Errores: ${result.errores?.length || 0}<br>`;
                     
-                    if (result.errores && result.errores.length > 0) {
-                        Espo.Ui.warning(mensaje, 10000);
-                        console.log('❌ Errores detallados:', result.errores);
-                    } else {
-                        Espo.Ui.success(mensaje);
-                    }
+                    Espo.Ui.success(mensaje, null, 15000);
                     
-                    // Mostrar detalles en consola
-                    if (result.detalles) {
-                        console.log('📝 Detalles de importación:', result.detalles);
-                    }
+                    this.$el.find('#csv-file-input').val('');
+                    this.$el.find('#file-name').text('No se ha seleccionado ningún archivo').removeClass('has-file');
+                    
+                    setTimeout(() => {
+                        this.loadStatistics();
+                    }, 3000);
                     
                 } else {
-                    throw new Error(result.error || 'Error desconocido en el servidor');
+                    throw new Error(result.error || 'Error en el servidor');
                 }
-                
-                // Limpiar y recargar
-                this.datosPreview = null;
-                this.mostrarPreviewTabla = false;
-                this.$el.find('#csv-file-input').val('');
-                this.reRender();
-                
-                // Recargar estadísticas
-                this.loadStatistics();
-                
-                return true;
                 
             } catch (error) {
-                console.error('💥 Error guardando encuestas:', error);
+                console.error('💥 Error en importación:', error);
+                Espo.Ui.error('❌ ERROR: ' + error.message, null, 15000);
+            } finally {
                 this.wait(false);
-                
-                // CORRECCIÓN: usar let en lugar de const
-                let mensajeError = 'Error al procesar las encuestas:<br>';
-                
-                if (error.message) {
-                    mensajeError += error.message;
-                } else if (error.status === 404) {
-                    mensajeError += 'Endpoint no encontrado (404)';
-                } else {
-                    mensajeError += 'Error de conexión con el servidor';
-                }
-                
-                Espo.Ui.error(mensajeError);
-                throw error;
             }
         },
 
-        // ... (el resto de los métodos se mantienen igual)
-        renderCharts: function () {
-            this.waitForChartJs(() => {
-                if (this.stats.distribucionOperaciones && this.stats.distribucionOperaciones.length > 0) {
-                    this.renderOperacionesChart();
-                }
-                if (this.stats.topAsesores && this.stats.topAsesores.length > 0) {
-                    this.renderTopAsesoresChart();
-                }
-                this.renderSatisfaccionGauge();
-            });
+        loadStatistics: function () {
+            console.log('📞 Solicitando estadísticas...');
+            
+            this.isLoading = true;
+            this.hasData = false;
+            this.showLoadingState();
+
+            Espo.Ajax.getRequest('CCustomerSurvey/action/getStats')
+                .then((response) => {
+                    console.log('✅ Estadísticas recibidas:', response);
+                    
+                    if (response && response.success && response.data) {
+                        this.stats = response.data;
+                        this.hasData = this.stats.totalEncuestas > 0;
+                        this.isLoading = false;
+                        this.updateUI();
+                    } else {
+                        this.handleNoData();
+                    }
+                })
+                .catch((error) => {
+                    console.error('❌ Error cargando estadísticas:', error);
+                    this.handleNoData();
+                });
         },
 
-        waitForChartJs: function(callback) {
-            if (typeof Chart !== 'undefined') {
-                callback();
+        handleNoData: function() {
+            this.hasData = false;
+            this.isLoading = false;
+            this.updateUI();
+        },
+
+        showLoadingState: function() {
+            const container = this.$el.find('#dynamic-content-container')[0];
+            if (container) {
+                container.innerHTML = this.getLoadingHTML();
+            }
+        },
+
+        updateUI: function() {
+            const container = this.$el.find('#dynamic-content-container')[0];
+            if (!container) return;
+
+            if (this.isLoading) {
+                container.innerHTML = this.getLoadingHTML();
+            } else if (this.hasData) {
+                container.innerHTML = this.getDataHTML();
             } else {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
-                script.onload = callback;
-                document.head.appendChild(script);
+                container.innerHTML = this.getEmptyHTML();
+                setTimeout(() => this.setupEmptyEventListeners(), 100);
             }
         },
 
-        renderOperacionesChart: function () {
-            // ... (mantener código existente)
+        getLoadingHTML: function() {
+            return `
+                <div class="loading-alert">
+                    <div class="spinner-large"></div>
+                    <h4>Cargando estadísticas...</h4>
+                    <p class="text-muted">Conectando con el servidor...</p>
+                </div>
+            `;
         },
 
-        renderTopAsesoresChart: function () {
-            // ... (mantener código existente)
+        getDataHTML: function() {
+            const stats = this.stats;
+            return `
+                <div class="estadisticas-principales">
+                    <div class="estadistica-card verde">
+                        <div class="estadistica-label">Total Encuestas</div>
+                        <div class="estadistica-valor">${stats.totalEncuestas || 0}</div>
+                        <div class="estadistica-desc">Base de datos</div>
+                    </div>
+                    <div class="estadistica-card naranja">
+                        <div class="estadistica-label">Satisfacción</div>
+                        <div class="estadistica-valor">${stats.satisfaccionPromedio || 0}</div>
+                        <div class="estadistica-desc">Promedio / 5</div>
+                    </div>
+                    <div class="estadistica-card rojo">
+                        <div class="estadistica-label">Recomendación</div>
+                        <div class="estadistica-valor">${stats.porcentajeRecomendacion || 0}%</div>
+                        <div class="estadistica-desc">Clientes satisfechos</div>
+                    </div>
+                </div>
+
+                <div class="alert alert-success system-info">
+                    <div class="system-status">
+                        <span class="status-indicator online"></span>
+                        <strong>✅ Sistema Conectado</strong>
+                    </div>
+                    <div class="system-details">
+                        Base de datos con <strong>${stats.totalEncuestas || 0}</strong> encuestas procesadas.
+                    </div>
+                </div>
+            `;
         },
 
-        renderSatisfaccionGauge: function () {
-            // ... (mantener código existente)
+        getEmptyHTML: function() {
+            return `
+                <div class="empty-alert">
+                    <div class="empty-icon">📊</div>
+                    <h3>No hay datos disponibles</h3>
+                    <p class="text-muted">Importe un archivo CSV para comenzar.</p>
+                    <div style="margin-top: 20px;">
+                        <button class="btn btn-primary" data-action="import-empty">
+                            <span class="fas fa-upload"></span>
+                            Importar Datos CSV
+                        </button>
+                    </div>
+                </div>
+            `;
         },
 
-        onRemove: function() {
-            if (this.operacionesChart) {
-                this.operacionesChart.destroy();
-            }
-            if (this.asesoresChart) {
-                this.asesoresChart.destroy();
-            }
+        setupEmptyEventListeners: function() {
+            this.$el.find('[data-action="import-empty"]').off('click').on('click', () => {
+                this.actionImport();
+            });
         }
+
     });
 });
