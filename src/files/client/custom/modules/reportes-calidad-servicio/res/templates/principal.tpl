@@ -8,6 +8,25 @@
         </div>
     </div>
 
+    <div class="filter-section panel panel-default">
+        <div class="panel-body">
+            <div class="filters-container">
+                <div class="filter-group">
+                    <label for="cla-select">🏢 CLA</label>
+                    <select id="cla-select" class="form-control" disabled>
+                        <option value="">Cargando CLAs...</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="oficina-select">🏪 Oficina</label>
+                    <select id="oficina-select" class="form-control" disabled>
+                        <option value="">Seleccione un CLA primero</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="file-input-section panel panel-default">
         <div class="panel-body">
             <div class="file-input-group">
@@ -40,6 +59,57 @@
 </div>
 
 <style>
+/* ===================================
+   SECCIÓN DE FILTROS
+   =================================== */
+.filter-section {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    border: none;
+}
+
+.filters-container {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    flex: 1;
+    min-width: 250px;
+}
+
+.filter-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 0.95em;
+}
+
+.filter-group .form-control {
+    width: 100%;
+    padding: 10px 15px;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    font-size: 0.95em;
+    transition: all 0.3s ease;
+}
+
+.filter-group .form-control:focus {
+    border-color: #B8A279;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(184, 162, 121, 0.1);
+}
+
+.filter-group .form-control:disabled {
+    background-color: #f8f9fa;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 /* ===================================
    ESTILOS GENERALES MEJORADOS
    =================================== */

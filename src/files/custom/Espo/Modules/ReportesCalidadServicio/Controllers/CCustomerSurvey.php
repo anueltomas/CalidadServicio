@@ -77,29 +77,35 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     }
     
     public function getActionGetStats($params, $data, $request)
-    {
-        try {
-            $entityManager = $this->getContainer()->get('entityManager');
-            
-            if (!$entityManager) {
-                throw new Error("No se pudo obtener entityManager");
-            }
-            
-            $stats = $this->obtenerEstadisticas($entityManager);
-            
-            return [
-                'success' => true,
-                'data' => $stats
-            ];
-            
-        } catch (\Exception $e) {
-            // En caso de error, devolver estadísticas por defecto
-            return [
-                'success' => true,
-                'data' => $this->obtenerEstadisticasPorDefecto()
-            ];
+{
+    try {
+        $entityManager = $this->getContainer()->get('entityManager');
+        
+        if (!$entityManager) {
+            throw new Error("No se pudo obtener entityManager");
         }
+        
+        // Obtener parámetros de filtro
+        $claId = $request->get('claId');
+        $oficinaId = $request->get('oficinaId');
+        
+        // CORREGIDO: Si no hay claId ni oficinaId, es "Territorio Nacional"
+        $mostrarTodas = empty($claId) && empty($oficinaId);
+        
+        $stats = $this->obtenerEstadisticas($entityManager, $claId, $oficinaId, $mostrarTodas);
+        
+        return [
+            'success' => true,
+            'data' => $stats
+        ];
+        
+    } catch (\Exception $e) {
+        return [
+            'success' => true,
+            'data' => $this->obtenerEstadisticasPorDefecto()
+        ];
     }
+}
     
     protected function encuestaExiste($encuesta, $entityManager)
     {
@@ -221,146 +227,256 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
     
-    protected function obtenerEstadisticas($entityManager)
-    {
+    protected function obtenerEstadisticas($entityManager, $claId = null, $oficinaId = null, $mostrarTodas = false)
+{
+    try {
+        // Construir where clause base - SIEMPRE filtrar por estatus completada (2)
+        $whereClause = [
+            'deleted' => false,
+            'estatus' => '2'
+        ];
+        
+        // CORREGIDO: Solo aplicar filtros si NO es "mostrar todas"
+        if (!$mostrarTodas) {
+            if ($oficinaId) {
+                // Filtrar por oficina específica
+                $userIds = $this->getUserIdsByTeam($entityManager, $oficinaId);
+                if (!empty($userIds)) {
+                    $whereClause['assignedUserId'] = $userIds;
+                } else {
+                    // Si no hay usuarios en la oficina, retornar vacío
+                    return $this->obtenerEstadisticasPorDefecto();
+                }
+            } elseif ($claId) {
+                // Filtrar por CLA (incluye todas las oficinas del CLA)
+                $userIds = $this->getUserIdsByCLA($entityManager, $claId);
+                if (!empty($userIds)) {
+                    $whereClause['assignedUserId'] = $userIds;
+                } else {
+                    // Si no hay usuarios en el CLA, retornar vacío
+                    return $this->obtenerEstadisticasPorDefecto();
+                }
+            }
+        }
+        // Si $mostrarTodas es true, NO se agrega filtro de assignedUserId
+        
+        // 1. Total de encuestas
+        $totalEncuestas = $entityManager->getRepository('CCustomerSurvey')
+            ->where($whereClause)
+            ->count();
+
+        // 2. Calificación promedio general
+        $encuestasConRating = $entityManager->getRepository('CCustomerSurvey')
+            ->where(array_merge($whereClause, ['generalAdvisorRating!=' => null]))
+            ->find();
+        
+        $sumaRatings = 0;
+        $contadorRatings = 0;
+        
+        foreach ($encuestasConRating as $encuesta) {
+            $rating = $encuesta->get('generalAdvisorRating');
+            if ($rating !== null) {
+                $sumaRatings += (float)$rating;
+                $contadorRatings++;
+            }
+        }
+        
+        $satisfaccionPromedio = $contadorRatings > 0 ? round($sumaRatings / $contadorRatings, 1) : 0;
+
+        // 3. Distribución por tipo de operación
+        $distribucionOperaciones = [
+            'Venta' => 0,
+            'Compra' => 0, 
+            'Alquiler' => 0
+        ];
+        
+        $encuestasOperacion = $entityManager->getRepository('CCustomerSurvey')
+            ->where(array_merge($whereClause, ['operationType!=' => null]))
+            ->find();
+        
+        foreach ($encuestasOperacion as $encuesta) {
+            $operacion = $encuesta->get('operationType');
+            if (isset($distribucionOperaciones[$operacion])) {
+                $distribucionOperaciones[$operacion]++;
+            }
+        }
+
+        // 4. Porcentaje de recomendación
+        $totalRecomiendan = $entityManager->getRepository('CCustomerSurvey')
+            ->where(array_merge($whereClause, ['recommendation' => '1']))
+            ->count();
+            
+        $porcentajeRecomendacion = $totalEncuestas > 0 ? 
+            round(($totalRecomiendan / $totalEncuestas) * 100) : 0;
+
+        // 5. Promedios por categoría
+        $promediosCategorias = $this->calcularPromediosCategorias($entityManager, $whereClause);
+
+        // 6. Distribución de calificaciones
+        $distribucionCalificaciones = $this->calcularDistribucionCalificaciones($entityManager, $whereClause);
+
+        return [
+            'totalEncuestas' => $totalEncuestas,
+            'satisfaccionPromedio' => $satisfaccionPromedio,
+            'porcentajeRecomendacion' => $porcentajeRecomendacion,
+            'tiposOperacion' => count(array_filter($distribucionOperaciones)),
+            'distribucionOperaciones' => $distribucionOperaciones,
+            'asesoresDestacados' => [],
+            'promediosCategorias' => $promediosCategorias,
+            'distribucionCalificaciones' => $distribucionCalificaciones
+        ];
+        
+    } catch (\Exception $e) {
+        return $this->obtenerEstadisticasPorDefecto();
+    }
+}
+
+    // Obtener IDs de usuarios por equipo (CLA u Oficina)
+protected function getUserIdsByTeam($entityManager, $teamId)
+{
+    try {
+        $pdo = $entityManager->getPDO();
+        
+        // Consulta SQL directa para obtener usuarios del equipo
+        $sql = "SELECT user_id FROM team_user WHERE team_id = :teamId AND deleted = 0";
+        $sth = $pdo->prepare($sql);
+        $sth->bindValue(':teamId', $teamId);
+        $sth->execute();
+        
+        $userIds = [];
+        while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+            $userIds[] = $row['user_id'];
+        }
+        
+        return $userIds;
+        
+    } catch (\Exception $e) {
+        return [];
+    }
+}
+
+// NUEVA FUNCIÓN: Obtener usuarios de un CLA incluyendo todas sus oficinas
+// Obtener usuarios de un CLA incluyendo todas sus oficinas
+protected function getUserIdsByCLA($entityManager, $claId)
+{
+    try {
+        $pdo = $entityManager->getPDO();
+        
+        // Obtener todos los usuarios que pertenecen al CLA
+        $sql = "SELECT DISTINCT user_id 
+                FROM team_user 
+                WHERE team_id = :claId 
+                AND deleted = 0";
+        
+        $sth = $pdo->prepare($sql);
+        $sth->bindValue(':claId', $claId);
+        $sth->execute();
+        
+        $userIds = [];
+        while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+            $userIds[] = $row['user_id'];
+        }
+        
+        // Obtener las oficinas de estos usuarios (teams que NO son CLAs)
+        $sql2 = "SELECT DISTINCT tu.team_id, t.name
+                 FROM team_user tu
+                 INNER JOIN team t ON tu.team_id = t.id
+                 WHERE tu.user_id IN (
+                     SELECT user_id FROM team_user WHERE team_id = :claId AND deleted = 0
+                 )
+                 AND tu.team_id != :claId
+                 AND t.id NOT LIKE 'CLA%'
+                 AND tu.deleted = 0
+                 AND t.deleted = 0";
+        
+        $sth2 = $pdo->prepare($sql2);
+        $sth2->bindValue(':claId', $claId);
+        $sth2->execute();
+        
+        $oficinasIds = [];
+        while ($row = $sth2->fetch(\PDO::FETCH_ASSOC)) {
+            $oficinasIds[] = $row['team_id'];
+        }
+        
+        // Obtener usuarios de todas las oficinas encontradas
+        foreach ($oficinasIds as $oficinaId) {
+            $oficinaUsers = $this->getUserIdsByTeam($entityManager, $oficinaId);
+            $userIds = array_merge($userIds, $oficinaUsers);
+        }
+        
+        // Eliminar duplicados
+        $userIds = array_unique($userIds);
+        
+        return $userIds;
+        
+    } catch (\Exception $e) {
+        return [];
+    }
+}
+    protected function calcularPromediosCategorias($entityManager, $whereClause)
+{
+    $campos = [
+        'communicationEffectiveness',
+        'legalAdvice', 
+        'personalPresentation',
+        'detailManagement',
+        'punctuality',
+        'commitmentLevel',
+        'problemSolving',
+        'fullSupport',
+        'unexpectedSituations',
+        'negotiationTiming',
+        'officeRating'
+    ];
+
+    $promedios = [];
+    
+    foreach ($campos as $campo) {
         try {
-            // 1. Total de encuestas
-            $totalEncuestas = $entityManager->getRepository('CCustomerSurvey')
-                ->where(['deleted' => false])
-                ->count();
-
-            // 2. Calificación promedio general - MÉTODO SIMPLIFICADO
-            $encuestasConRating = $entityManager->getRepository('CCustomerSurvey')
-                ->where(['deleted' => false, 'generalAdvisorRating!=' => null])
+            $encuestasConValor = $entityManager->getRepository('CCustomerSurvey')
+                ->where(array_merge($whereClause, [$campo . '!=' => null]))
                 ->find();
             
-            $sumaRatings = 0;
-            $contadorRatings = 0;
+            $suma = 0;
+            $contador = 0;
             
-            foreach ($encuestasConRating as $encuesta) {
-                $rating = $encuesta->get('generalAdvisorRating');
-                if ($rating !== null) {
-                    $sumaRatings += (float)$rating;
-                    $contadorRatings++;
+            foreach ($encuestasConValor as $encuesta) {
+                $valor = $encuesta->get($campo);
+                if ($valor !== null) {
+                    $suma += (float)$valor;
+                    $contador++;
                 }
             }
             
-            $satisfaccionPromedio = $contadorRatings > 0 ? round($sumaRatings / $contadorRatings, 1) : 0;
-
-            // 3. Distribución por tipo de operación
-            $distribucionOperaciones = [
-                'Venta' => 0,
-                'Compra' => 0, 
-                'Alquiler' => 0
-            ];
-            
-            $encuestasOperacion = $entityManager->getRepository('CCustomerSurvey')
-                ->where(['deleted' => false, 'operationType!=' => null])
-                ->find();
-            
-            foreach ($encuestasOperacion as $encuesta) {
-                $operacion = $encuesta->get('operationType');
-                if (isset($distribucionOperaciones[$operacion])) {
-                    $distribucionOperaciones[$operacion]++;
-                }
-            }
-
-            // 4. Porcentaje de recomendación
-            $totalRecomiendan = $entityManager->getRepository('CCustomerSurvey')
-                ->where(['deleted' => false, 'recommendation' => '1'])
-                ->count();
-                
-            $porcentajeRecomendacion = $totalEncuestas > 0 ? 
-                round(($totalRecomiendan / $totalEncuestas) * 100) : 0;
-
-            // 5. Promedios por categoría - MÉTODO SIMPLIFICADO
-            $promediosCategorias = $this->calcularPromediosCategorias($entityManager);
-
-            // 6. Distribución de calificaciones
-            $distribucionCalificaciones = $this->calcularDistribucionCalificaciones($entityManager);
-
-            return [
-                'totalEncuestas' => $totalEncuestas,
-                'satisfaccionPromedio' => $satisfaccionPromedio,
-                'porcentajeRecomendacion' => $porcentajeRecomendacion,
-                'tiposOperacion' => count(array_filter($distribucionOperaciones)),
-                'distribucionOperaciones' => $distribucionOperaciones,
-                'asesoresDestacados' => [],
-                'promediosCategorias' => $promediosCategorias,
-                'distribucionCalificaciones' => $distribucionCalificaciones
-            ];
+            $promedios[$campo] = $contador > 0 ? round($suma / $contador, 1) : 0;
             
         } catch (\Exception $e) {
-            // Si hay error, devolver valores por defecto
-            return $this->obtenerEstadisticasPorDefecto();
+            $promedios[$campo] = 0;
         }
     }
+
+    return $promedios;
+}
+
+protected function calcularDistribucionCalificaciones($entityManager, $whereClause)
+{
+    $distribucion = [1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0];
     
-    protected function calcularPromediosCategorias($entityManager)
-    {
-        $campos = [
-            'communicationEffectiveness',
-            'legalAdvice', 
-            'personalPresentation',
-            'detailManagement',
-            'punctuality',
-            'commitmentLevel',
-            'problemSolving',
-            'fullSupport',
-            'unexpectedSituations',
-            'negotiationTiming',
-            'officeRating'
-        ];
-
-        $promedios = [];
-        
-        foreach ($campos as $campo) {
-            try {
-                // Método simplificado: obtener todas las encuestas y calcular manualmente
-                $encuestasConValor = $entityManager->getRepository('CCustomerSurvey')
-                    ->where(['deleted' => false, $campo . '!=' => null])
-                    ->find();
+    for ($i = 1; $i <= 5; $i++) {
+        try {
+            $count = $entityManager->getRepository('CCustomerSurvey')
+                ->where(array_merge($whereClause, ['generalAdvisorRating' => $i]))
+                ->count();
                 
-                $suma = 0;
-                $contador = 0;
-                
-                foreach ($encuestasConValor as $encuesta) {
-                    $valor = $encuesta->get($campo);
-                    if ($valor !== null) {
-                        $suma += (float)$valor;
-                        $contador++;
-                    }
-                }
-                
-                $promedios[$campo] = $contador > 0 ? round($suma / $contador, 1) : 0;
-                
-            } catch (\Exception $e) {
-                $promedios[$campo] = 0;
-            }
+            $distribucion[$i] = $count;
+            
+        } catch (\Exception $e) {
+            $distribucion[$i] = 0;
         }
-
-        return $promedios;
     }
-    
-    protected function calcularDistribucionCalificaciones($entityManager)
-    {
-        $distribucion = [1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0];
-        
-        for ($i = 1; $i <= 5; $i++) {
-            try {
-                $count = $entityManager->getRepository('CCustomerSurvey')
-                    ->where(['deleted' => false, 'generalAdvisorRating' => $i])
-                    ->count();
-                    
-                $distribucion[$i] = $count;
-                
-            } catch (\Exception $e) {
-                $distribucion[$i] = 0;
-            }
-        }
 
-        return $distribucion;
-    }
+    return $distribucion;
+}
     
     protected function obtenerEstadisticasPorDefecto()
     {

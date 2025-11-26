@@ -31,6 +31,14 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 calificacionOficina: 0
             };
             
+            // Variables para filtros
+            this.filtros = {
+                cla: null,
+                oficina: null,
+                // NUEVO: Flag para indicar que se muestran todas las estadísticas
+                mostrarTodas: true
+            };
+            
             this.charts = {};
             
             this.initMappings();
@@ -55,12 +63,140 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 this.loadStatistics();
             }
         },
-
         afterRender: function () {
             console.log('✅ Vista renderizada');
             this.showLoadingState();
             this.setupEventListeners();
+            // NUEVO: Cargar datos de los filtros
+            this.loadFilterData();
         },
+
+        // NUEVA FUNCIÓN: Cargar datos para los filtros
+        loadFilterData: function() {
+    console.log('📋 Cargando datos de filtros...');
+    
+    // Cargar todos los Teams
+    this.getCollectionFactory().create('Team', (collection) => {
+        collection.maxSize = 500;
+        collection.fetch().then(() => {
+            console.log('✅ Teams cargados:', collection.length);
+            
+            // Separar CLAs y Oficinas
+            this.allTeams = {
+                clas: [],
+                oficinas: []
+            };
+            
+            collection.forEach((model) => {
+                const id = model.get('id');
+                const name = model.get('name');
+                
+                // CORREGIDO: Identificar CLAs por su ID (CLA0-CLA9)
+                if (id && id.startsWith('CLA')) {
+                    this.allTeams.clas.push({
+                        id: id,
+                        name: name
+                    });
+                } else {
+                    this.allTeams.oficinas.push({
+                        id: id,
+                        name: name
+                    });
+                }
+            });
+            
+            console.log('📊 CLAs encontrados:', this.allTeams.clas.length);
+            console.log('🏪 Oficinas encontradas:', this.allTeams.oficinas.length);
+            
+            // Poblar select de CLAs
+            this.populateCLASelect();
+        });
+    });
+},
+
+        // NUEVA FUNCIÓN: Poblar select de CLA
+        populateCLASelect: function() {
+    const claSelect = this.$el.find('#cla-select');
+    if (!claSelect.length) return;
+    
+    claSelect.empty();
+    
+    // NUEVO: Agregar "Territorio Nacional" como primera opción
+    claSelect.append('<option value="" selected>Territorio Nacional</option>');
+    
+    // Ordenar CLAs alfabéticamente
+    this.allTeams.clas.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Agregar los CLAs
+    this.allTeams.clas.forEach((cla) => {
+        claSelect.append(
+            $('<option></option>')
+                .val(cla.id)
+                .text(cla.name)
+        );
+    });
+    
+    claSelect.prop('disabled', false);
+    
+    console.log('✅ Select de CLAs poblado con Territorio Nacional como default');
+},
+
+        // NUEVA FUNCIÓN: Cargar oficinas según CLA
+        loadOficinas: function (claId) {
+    var oficinaSelect = this.$el.find('#oficina-select');
+    
+    // Mostrar estado de carga
+    oficinaSelect.html('<option value="">Cargando oficinas...</option>');
+    oficinaSelect.prop('disabled', true);
+    
+    Promise.all([
+        this.fetchAllTeams(),
+        this.fetchUsuariosPorCLA(claId)
+    ]).then(function ([teams, usuariosConCLA]) {
+        var claPattern = /^CLA\d+$/i;
+        var oficinasIds = new Set();
+        
+        // Recopilar IDs de oficinas de los usuarios
+        usuariosConCLA.forEach(usuario => {
+            var teamsIds = usuario.teamsIds || [];
+            teamsIds.forEach(teamId => {
+                // Excluir CLAs y team "Venezuela"
+                if (!claPattern.test(teamId) && teamId.toLowerCase() !== 'venezuela') {
+                    oficinasIds.add(teamId);
+                }
+            });
+        });
+        
+        // Filtrar teams que son oficinas
+        var oficinas = teams.filter(t => oficinasIds.has(t.id));
+        
+        // Poblar select
+        oficinaSelect.html('<option value="">Todas las oficinas</option>');
+        
+        if (oficinas.length === 0) {
+            oficinaSelect.append('<option value="" disabled>No hay oficinas disponibles</option>');
+        } else {
+            // Ordenar alfabéticamente
+            oficinas.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            
+            oficinas.forEach(oficina => {
+                oficinaSelect.append(
+                    `<option value="${oficina.id}">${oficina.name || oficina.id}</option>`
+                );
+            });
+        }
+        
+        oficinaSelect.prop('disabled', false);
+        
+        console.log('✅ Oficinas cargadas:', oficinas.length);
+        
+    }.bind(this)).catch(function (error) {
+        console.error('❌ Error al cargar oficinas:', error);
+        oficinaSelect.html('<option value="">Error al cargar oficinas</option>');
+        oficinaSelect.prop('disabled', false);
+        Espo.Ui.error('Error al cargar las oficinas del CLA');
+    }.bind(this));
+},
 
         registrarPluginsChart: function() {
             if (typeof Chart === 'undefined') return;
@@ -107,6 +243,113 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
             
             Chart.register(barLabelsPlugin);
         },
+
+        fetchAllTeams: function () {
+    return new Promise(function (resolve, reject) {
+        var maxSize = 200;
+        var allTeams = [];
+        
+        var fetchPage = function (offset) {
+            this.getCollectionFactory().create('Team', function (collection) {
+                collection.maxSize = maxSize;
+                collection.offset = offset;
+                
+                collection.fetch().then(function () {
+                    var models = collection.models || [];
+                    allTeams = allTeams.concat(models.map(m => ({
+                        id: m.id,
+                        name: m.get('name')
+                    })));
+                    if (models.length === maxSize && allTeams.length < collection.total) {
+                        fetchPage(offset + maxSize);
+                    } else {
+                        resolve(allTeams);
+                    }
+                }).catch(reject);
+            }.bind(this));
+        }.bind(this);
+        
+        fetchPage(0);
+    }.bind(this));
+},
+
+fetchUsuariosPorCLA: function (claId) {
+            return new Promise(function (resolve, reject) {
+                var maxSize = 200;
+                var allUsers = [];
+                
+                var fetchPage = function (offset) {
+                    this.getCollectionFactory().create('User', function (collection) {
+                        collection.maxSize = maxSize;
+                        collection.offset = offset;
+                        collection.data = { select: 'teamsIds,teamsNames' };
+                        
+                        collection.fetch().then(function () {
+                            var models = collection.models || [];
+                            var filtered = models.filter(u => {
+                                var teamsIds = u.get('teamsIds') || [];
+                                return teamsIds.includes(claId);
+                            }).map(m => ({
+                                id: m.id,
+                                teamsIds: m.get('teamsIds'),
+                                teamsNames: m.get('teamsNames')
+                            }));
+                            
+                            allUsers = allUsers.concat(filtered);
+                            console.log('TOMAS: ', allUsers);
+                            if (models.length === maxSize && (offset + maxSize) < collection.total) {
+                                fetchPage(offset + maxSize);
+                            } else {
+                                resolve(allUsers);
+                            }
+                        }).catch(reject);
+                    }.bind(this));
+                }.bind(this);
+                
+                fetchPage(0);
+            }.bind(this));
+        },
+
+/* fetchUsuariosPorCLA: function (claId) {
+    return new Promise(function (resolve, reject) {
+        var maxSize = 200;
+        var allUsers = [];
+        
+        var fetchPage = function (offset) {
+            this.getCollectionFactory().create('User', function (collection) {
+                collection.maxSize = maxSize;
+                collection.offset = offset;
+                
+                // CRÍTICO: NO usar where con teamsIds directamente
+                // En su lugar, filtraremos después de cargar
+                
+                collection.fetch().then(function () {
+                    var models = collection.models || [];
+                    
+                    // Filtrar usuarios que pertenecen al CLA
+                    var filtered = models.filter(u => {
+                        var teamsIds = u.get('teamsIds') || [];
+                        return teamsIds.includes(claId);
+                    }).map(m => ({
+                        id: m.id,
+                        teamsIds: m.get('teamsIds'),
+                        teamsNames: m.get('teamsNames')
+                    }));
+                    
+                    allUsers = allUsers.concat(filtered);
+                    
+                    if (models.length === maxSize && (offset + maxSize) < collection.total) {
+                        fetchPage(offset + maxSize);
+                    } else {
+                        resolve(allUsers);
+                    }
+                }).catch(reject);
+            }.bind(this));
+        }.bind(this);
+        
+        fetchPage(0);
+    }.bind(this));
+}, */
 
         initMappings: function() {
             console.log('🔧 Inicializando mapeos según orden de campos de la BD...');
@@ -158,30 +401,82 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
         },
 
         setupEventListeners: function() {
-            const fileInput = this.$el.find('#csv-file-input')[0];
-            const fileName = this.$el.find('#file-name')[0];
-            
-            if (fileInput && fileName) {
-                fileInput.addEventListener('change', function() {
-                    if (this.files && this.files[0]) {
-                        fileName.textContent = this.files[0].name;
-                        fileName.classList.add('has-file');
-                    } else {
-                        fileName.textContent = 'No se ha seleccionado ningún archivo';
-                        fileName.classList.remove('has-file');
-                    }
-                });
+    const fileInput = this.$el.find('#csv-file-input')[0];
+    const fileName = this.$el.find('#file-name')[0];
+    
+    if (fileInput && fileName) {
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                fileName.textContent = this.files[0].name;
+                fileName.classList.add('has-file');
+            } else {
+                fileName.textContent = 'No se ha seleccionado ningún archivo';
+                fileName.classList.remove('has-file');
             }
+        });
+    }
 
-            this.$el.find('[data-action="import"]').off('click').on('click', () => {
-                this.actionImport();
-            });
+    this.$el.find('[data-action="import"]').off('click').on('click', () => {
+        this.actionImport();
+    });
 
-            this.$el.find('[data-action="refresh"]').off('click').on('click', () => {
-                this.loadStatistics();
-            });
-        },
+    this.$el.find('[data-action="refresh"]').off('click').on('click', () => {
+        this.loadStatistics();
+    });
+    
+    // Event listener para CLA
+    this.$el.find('#cla-select').off('change').on('change', (e) => {
+        const claId = $(e.currentTarget).val();
+        
+        console.log('🔄 CLA seleccionado:', claId || 'Territorio Nacional');
+        
+        this.filtros.cla = claId || null;
+        this.filtros.oficina = null;
+        this.filtros.mostrarTodas = !claId; // True si es "Territorio Nacional"
+        
+        // Reset select de oficina
+        const oficinaSelect = this.$el.find('#oficina-select');
+        oficinaSelect.val('');
+        
+        if (claId) {
+            // Cargar oficinas del CLA seleccionado
+            this.loadOficinas(claId);
+        } else {
+            // Si es "Territorio Nacional", deshabilitar oficina
+            oficinaSelect.empty();
+            oficinaSelect.append('<option value="">Seleccione un CLA primero</option>');
+            oficinaSelect.prop('disabled', true);
+        }
+        
+        // Actualizar estadísticas
+        this.loadStatistics();
+    });
+    
+    // Event listener para Oficina
+    this.$el.find('#oficina-select').off('change').on('change', (e) => {
+        const oficinaId = $(e.currentTarget).val();
+        
+        console.log('🔄 Oficina seleccionada:', oficinaId || 'Todas las oficinas');
+        
+        this.filtros.oficina = oficinaId || null;
+        this.filtros.mostrarTodas = false;
+        
+        // Actualizar estadísticas
+        this.loadStatistics();
+    });
 
+    /* oficinaSelect.on('change', function (e) {
+        var valor = $(e.currentTarget).val();
+        
+        console.log('🔄 Oficina seleccionada:', valor || 'Todas las oficinas');
+        
+        this.filtros.oficina = valor || null;
+        this.filtros.mostrarTodas = false; // Ya no es territorio nacional
+        
+        // Actualizar estadísticas con el nuevo filtro
+        this.loadStatistics();
+    }.bind(this)); */
+},
         validateAndTransformCSV: function(csvData) {
             try {
                 console.log('🔄 Procesando CSV con validación estricta...');
@@ -560,31 +855,48 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
         },
 
         loadStatistics: function () {
-            console.log('📞 Solicitando estadísticas...');
-            
-            this.isLoading = true;
-            this.hasData = false;
-            this.showLoadingState();
+    console.log('📞 Solicitando estadísticas con filtros:', this.filtros);
+    
+    this.isLoading = true;
+    this.hasData = false;
+    this.showLoadingState();
 
-            Espo.Ajax.getRequest('CCustomerSurvey/action/getStats')
-                .then((response) => {
-                    console.log('✅ Estadísticas recibidas:', response);
-                    
-                    if (response && response.success && response.data) {
-                        this.stats = this.procesarEstadisticasReales(response.data);
-                        this.hasData = this.stats.totalEncuestas > 0;
-                        this.isLoading = false;
-                        this.updateUI();
-                    } else {
-                        console.warn('⚠️ Respuesta vacía o sin datos');
-                        this.handleNoData();
-                    }
-                })
-                .catch((error) => {
-                    console.error('❌ Error cargando estadísticas:', error);
-                    this.handleNoData();
-                });
-        },
+    // Construir parámetros
+    const params = {};
+    
+    // CORREGIDO: Cuando mostrarTodas es true, NO enviar parámetros de filtro
+    if (this.filtros.mostrarTodas) {
+        console.log('📊 Mostrando TODAS las encuestas completadas (Territorio Nacional)');
+        // No agregar claId ni oficinaId
+    } else {
+        if (this.filtros.oficina) {
+            params.oficinaId = this.filtros.oficina;
+            console.log('🏪 Filtrando por oficina:', this.filtros.oficina);
+        } else if (this.filtros.cla) {
+            params.claId = this.filtros.cla;
+            console.log('📊 Filtrando por CLA:', this.filtros.cla);
+        }
+    }
+
+    Espo.Ajax.getRequest('CCustomerSurvey/action/getStats', params)
+        .then((response) => {
+            console.log('✅ Estadísticas recibidas:', response);
+            
+            if (response && response.success && response.data) {
+                this.stats = this.procesarEstadisticasReales(response.data);
+                this.hasData = this.stats.totalEncuestas > 0;
+                this.isLoading = false;
+                this.updateUI();
+            } else {
+                console.warn('⚠️ Respuesta vacía o sin datos');
+                this.handleNoData();
+            }
+        })
+        .catch((error) => {
+            console.error('❌ Error cargando estadísticas:', error);
+            this.handleNoData();
+        });
+},
 
         procesarEstadisticasReales: function(datosBackend) {
             console.log('🔄 Procesando estadísticas reales desde backend:', datosBackend);
