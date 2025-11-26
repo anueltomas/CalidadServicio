@@ -6,6 +6,46 @@ use Espo\Core\Exceptions\Error;
 
 class CCustomerSurvey extends \Espo\Core\Controllers\Base
 {
+
+
+    protected function getUserRoles($entityManager, $userId)
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            $sql = "SELECT r.name 
+                    FROM role r
+                    INNER JOIN role_user ru ON r.id = ru.role_id
+                    WHERE ru.user_id = :userId 
+                    AND ru.deleted = 0 
+                    AND r.deleted = 0";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':userId', $userId);
+            $sth->execute();
+            
+            $roles = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                $roles[] = strtolower($row['name']);
+            }
+            
+            return $roles;
+            
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    protected function esAdministrativo($roles)
+    {
+        return in_array('administrativo', $roles) || in_array('administrator', $roles) || in_array('admin', $roles);
+    }
+
+    protected function esCasaNacional($roles)
+    {
+        return in_array('casa nacional', $roles);
+    }
+
     public function postActionImportarEncuestas($params, $data, $request)
     {
         try {
@@ -17,6 +57,22 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             
             if (!$entityManager) {
                 throw new Error("No se pudo obtener entityManager");
+            }
+
+            // NUEVO: Validar permisos de usuario
+            $user = $this->getContainer()->get('user');
+            $userId = $user->get('id');
+            $roles = $this->getUserRoles($entityManager, $userId);
+            
+            if (!$this->esAdministrativo($roles)) {
+                return [
+                    'success' => false,
+                    'error' => 'No tiene permisos para importar encuestas',
+                    'total' => 0,
+                    'procesadas' => 0,
+                    'duplicadas' => 0,
+                    'errores' => ['Acceso denegado: Solo usuarios administrativos pueden importar']
+                ];
             }
             
             $data = $request->getParsedBody();
@@ -77,35 +133,113 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     }
     
     public function getActionGetStats($params, $data, $request)
-{
-    try {
-        $entityManager = $this->getContainer()->get('entityManager');
+    {
+        try {
+            $entityManager = $this->getContainer()->get('entityManager');
+            
+            if (!$entityManager) {
+                throw new Error("No se pudo obtener entityManager");
+            }
+            
+            // Obtener usuario actual
+            $user = $this->getContainer()->get('user');
+            $userId = $user->get('id');
+            
+            // Obtener roles del usuario
+            $roles = $this->getUserRoles($entityManager, $userId);
+            
+            // Obtener parámetros de filtro
+            $claId = $request->get('claId');
+            $oficinaId = $request->get('oficinaId');
+            
+            // Validar permisos según rol
+            $esAdmin = $this->esAdministrativo($roles);
+            $esCasaNac = $this->esCasaNacional($roles);
+            
+            // Si no es admin ni casa nacional, validar que solo vea su CLA o territorio nacional
+            if (!$esAdmin && !$esCasaNac) {
+                // Obtener CLA del usuario
+                $userTeams = $this->getUserTeams($entityManager, $userId);
+                $userClaId = $this->extractCLAFromTeams($userTeams);
+                
+                // Si solicitan un CLA específico, verificar que sea el suyo
+                if ($claId && $claId !== 'CLA0' && $claId !== $userClaId) {
+                    return [
+                        'success' => false,
+                        'error' => 'No tiene permisos para ver este CLA',
+                        'data' => $this->obtenerEstadisticasPorDefecto()
+                    ];
+                }
+            }
+            
+            $mostrarTodas = empty($claId) && empty($oficinaId);
+            
+            $stats = $this->obtenerEstadisticas($entityManager, $claId, $oficinaId, $mostrarTodas);
+            
+            return [
+                'success' => true,
+                'data' => $stats,
+                'permisos' => [
+                    'esAdministrativo' => $esAdmin,
+                    'esCasaNacional' => $esCasaNac,
+                    'puedeImportar' => $esAdmin
+                ]
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'data' => $this->obtenerEstadisticasPorDefecto()
+            ];
+        }
+    }
+
+    protected function getUserTeams($entityManager, $userId)
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            $sql = "SELECT t.id, t.name 
+                    FROM team t
+                    INNER JOIN team_user tu ON t.id = tu.team_id
+                    WHERE tu.user_id = :userId 
+                    AND tu.deleted = 0 
+                    AND t.deleted = 0";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':userId', $userId);
+            $sth->execute();
+            
+            $teams = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                $teams[] = [
+                    'id' => $row['id'],
+                    'name' => $row['name']
+                ];
+            }
+            
+            return $teams;
+            
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    protected function extractCLAFromTeams($teams)
+    {
+        $claPattern = '/^CLA\d+$/i';
         
-        if (!$entityManager) {
-            throw new Error("No se pudo obtener entityManager");
+        foreach ($teams as $team) {
+            if (preg_match($claPattern, $team['id'])) {
+                return $team['id'];
+            }
         }
         
-        // Obtener parámetros de filtro
-        $claId = $request->get('claId');
-        $oficinaId = $request->get('oficinaId');
-        
-        // CORREGIDO: Si no hay claId ni oficinaId, es "Territorio Nacional"
-        $mostrarTodas = empty($claId) && empty($oficinaId);
-        
-        $stats = $this->obtenerEstadisticas($entityManager, $claId, $oficinaId, $mostrarTodas);
-        
-        return [
-            'success' => true,
-            'data' => $stats
-        ];
-        
-    } catch (\Exception $e) {
-        return [
-            'success' => true,
-            'data' => $this->obtenerEstadisticasPorDefecto()
-        ];
+        return null;
     }
-}
+
+    
     
     protected function encuestaExiste($encuesta, $entityManager)
     {

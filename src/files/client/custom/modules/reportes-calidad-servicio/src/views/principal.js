@@ -5,7 +5,7 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
         template: 'reportes-calidad-servicio:principal',
 
         setup: function () {
-            console.log('🚀 Iniciando vista de Calidad de Servicio');
+            // Iniciando vista de Calidad de Servicio
             
             this.hasData = false;
             this.isLoading = true;
@@ -35,25 +35,34 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
             this.filtros = {
                 cla: null,
                 oficina: null,
-                // NUEVO: Flag para indicar que se muestran todas las estadísticas
                 mostrarTodas: true
+            };
+            
+            // Variables de permisos
+            this.permisos = {
+                esAdministrativo: false,
+                esCasaNacional: false,
+                puedeImportar: false,
+                claUsuario: null,
+                permisosListo: false
             };
             
             this.charts = {};
             
             this.initMappings();
+            this.cargarPermisosUsuario();
             
             if (typeof Chart === 'undefined') {
-                console.log('📦 Cargando Chart.js...');
+                // Cargando Chart.js...
                 var script = document.createElement('script');
                 script.src = 'client/custom/modules/reportes-calidad-servicio/lib/chart.min.js';
                 script.onload = function() {
-                    console.log('✅ Chart.js cargado correctamente');
+                    // Chart.js cargado correctamente
                     this.registrarPluginsChart();
                     this.loadStatistics();
                 }.bind(this);
                 script.onerror = function() {
-                    console.error('❌ Error al cargar Chart.js');
+                    // Error al cargar Chart.js
                     Espo.Ui.error('Error al cargar la librería de gráficos');
                     this.loadStatistics();
                 }.bind(this);
@@ -63,140 +72,219 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
                 this.loadStatistics();
             }
         },
-        afterRender: function () {
-            console.log('✅ Vista renderizada');
-            this.showLoadingState();
-            this.setupEventListeners();
-            // NUEVO: Cargar datos de los filtros
-            this.loadFilterData();
+
+        cargarPermisosUsuario: function() {
+            // Cargando permisos de usuario...
+            
+            var user = this.getUser();
+            
+            // Obtener modelo completo del usuario con roles y teams
+            this.getModelFactory().create('User', function(userModel) {
+                userModel.id = user.id;
+                userModel.fetch({ relations: { roles: true, teams: true } }).then(function() {
+                    var roles = Object.values(userModel.get('rolesNames') || {}).map(r => r.toLowerCase());
+                    var teamsIds = userModel.get('teamsIds') || [];
+                    // Determinar permisos
+                    this.permisos.esAdministrativo = roles.includes('administrativo') || roles.includes('administrator') || roles.includes('admin');
+                    this.permisos.esCasaNacional = roles.includes('casa nacional');
+                    this.permisos.puedeImportar = this.permisos.esAdministrativo;
+                    
+                    // Extraer CLA del usuario
+                    var claPattern = /^CLA\d+$/i;
+                    this.permisos.claUsuario = teamsIds.find(id => claPattern.test(id)) || null;
+
+                    this.permisos.permisosListo = true;
+                    
+                    // Aplicar restricciones de UI
+                    this.aplicarRestriccionesUI();
+
+                    this.loadFilterData();
+                    
+                }.bind(this)).catch(function(error) {
+                    // Error cargando permisos
+                });
+            }.bind(this));
         },
 
-        // NUEVA FUNCIÓN: Cargar datos para los filtros
-        loadFilterData: function() {
-    console.log('📋 Cargando datos de filtros...');
-    
-    // Cargar todos los Teams
-    this.getCollectionFactory().create('Team', (collection) => {
-        collection.maxSize = 500;
-        collection.fetch().then(() => {
-            console.log('✅ Teams cargados:', collection.length);
+        aplicarRestriccionesUI: function() {
+            // Aplicando restricciones de UI...
             
-            // Separar CLAs y Oficinas
-            this.allTeams = {
-                clas: [],
-                oficinas: []
-            };
+            // Ocultar sección de importación si no es administrativo
+            if (!this.permisos.puedeImportar) {
+                var fileSection = this.$el.find('.file-input-section');
+                if (fileSection.length) {
+                    fileSection.hide();
+                    // Sección de importación oculta (usuario sin permisos)
+                }
+            } else {
+                var fileSection = this.$el.find('.file-input-section');
+                if (fileSection.length) {
+                    fileSection.show();
+                    // Sección de importación visible (usuario administrativo)
+                }
+            }
             
-            collection.forEach((model) => {
-                const id = model.get('id');
-                const name = model.get('name');
-                
-                // CORREGIDO: Identificar CLAs por su ID (CLA0-CLA9)
-                if (id && id.startsWith('CLA')) {
-                    this.allTeams.clas.push({
-                        id: id,
-                        name: name
-                    });
+            // Si no es admin ni casa nacional, informar limitación
+            if (!this.permisos.esAdministrativo && !this.permisos.esCasaNacional) {
+                if (this.permisos.claUsuario) {
+                    // Usuario limitado a su CLA
                 } else {
-                    this.allTeams.oficinas.push({
-                        id: id,
-                        name: name
+                    // Usuario limitado a Territorio Nacional
+                }
+            }
+        },
+
+        afterRender: function () {
+            // Vista renderizada
+            this.showLoadingState();
+            this.setupEventListeners();
+
+            // Solo cargar permisos, loadFilterData se llamará cuando terminen
+            this.cargarPermisosUsuario();
+        },
+
+        // Cargar datos para los filtros
+        loadFilterData: function() {
+            // Cargando datos de filtros...
+
+            // VALIDAR que los permisos estén listos
+            if (!this.permisos.permisosListo) {
+                // Esperando permisos...
+                setTimeout(function() {
+                    this.loadFilterData();
+                }.bind(this), 100);
+                return;
+            }
+            
+            this.getCollectionFactory().create('Team', (collection) => {
+                collection.maxSize = 500;
+                collection.fetch().then(() => {
+                    
+                    this.allTeams = {
+                        clas: [],
+                        oficinas: []
+                    };
+                    
+                    collection.forEach((model) => {
+                        const id = model.get('id');
+                        const name = model.get('name');
+                        
+                        if (id && id.startsWith('CLA')) {
+                            this.allTeams.clas.push({
+                                id: id,
+                                name: name
+                            });
+                        } else {
+                            this.allTeams.oficinas.push({
+                                id: id,
+                                name: name
+                            });
+                        }
                     });
-                }
+                    
+                    this.populateCLASelect();
+                });
             });
-            
-            console.log('📊 CLAs encontrados:', this.allTeams.clas.length);
-            console.log('🏪 Oficinas encontradas:', this.allTeams.oficinas.length);
-            
-            // Poblar select de CLAs
-            this.populateCLASelect();
-        });
-    });
-},
+        },
 
-        // NUEVA FUNCIÓN: Poblar select de CLA
+        // Poblar select de CLA
         populateCLASelect: function() {
-    const claSelect = this.$el.find('#cla-select');
-    if (!claSelect.length) return;
-    
-    claSelect.empty();
-    
-    // NUEVO: Agregar "Territorio Nacional" como primera opción
-    claSelect.append('<option value="" selected>Territorio Nacional</option>');
-    
-    // Ordenar CLAs alfabéticamente
-    this.allTeams.clas.sort((a, b) => a.name.localeCompare(b.name));
-    
-    // Agregar los CLAs
-    this.allTeams.clas.forEach((cla) => {
-        claSelect.append(
-            $('<option></option>')
-                .val(cla.id)
-                .text(cla.name)
-        );
-    });
-    
-    claSelect.prop('disabled', false);
-    
-    console.log('✅ Select de CLAs poblado con Territorio Nacional como default');
-},
-
-        // NUEVA FUNCIÓN: Cargar oficinas según CLA
-        loadOficinas: function (claId) {
-    var oficinaSelect = this.$el.find('#oficina-select');
-    
-    // Mostrar estado de carga
-    oficinaSelect.html('<option value="">Cargando oficinas...</option>');
-    oficinaSelect.prop('disabled', true);
-    
-    Promise.all([
-        this.fetchAllTeams(),
-        this.fetchUsuariosPorCLA(claId)
-    ]).then(function ([teams, usuariosConCLA]) {
-        var claPattern = /^CLA\d+$/i;
-        var oficinasIds = new Set();
-        
-        // Recopilar IDs de oficinas de los usuarios
-        usuariosConCLA.forEach(usuario => {
-            var teamsIds = usuario.teamsIds || [];
-            teamsIds.forEach(teamId => {
-                // Excluir CLAs y team "Venezuela"
-                if (!claPattern.test(teamId) && teamId.toLowerCase() !== 'venezuela') {
-                    oficinasIds.add(teamId);
-                }
-            });
-        });
-        
-        // Filtrar teams que son oficinas
-        var oficinas = teams.filter(t => oficinasIds.has(t.id));
-        
-        // Poblar select
-        oficinaSelect.html('<option value="">Todas las oficinas</option>');
-        
-        if (oficinas.length === 0) {
-            oficinaSelect.append('<option value="" disabled>No hay oficinas disponibles</option>');
-        } else {
-            // Ordenar alfabéticamente
-            oficinas.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            const claSelect = this.$el.find('#cla-select');
+            if (!claSelect.length) return;
             
-            oficinas.forEach(oficina => {
-                oficinaSelect.append(
-                    `<option value="${oficina.id}">${oficina.name || oficina.id}</option>`
+            claSelect.empty();
+
+            // Aplicando filtro de CLAs...
+            
+            // Territorio Nacional (siempre disponible)
+            claSelect.append('<option value="" selected>Territorio Nacional</option>');
+            
+            // Filtrar CLAs según permisos
+            var clasDisponibles = this.allTeams.clas;
+            
+            if (!this.permisos.esAdministrativo && !this.permisos.esCasaNacional) {
+                // Usuario regular: solo su CLA
+                if (this.permisos.claUsuario) {
+                    clasDisponibles = clasDisponibles.filter(cla => cla.id === this.permisos.claUsuario);
+                } else {
+                    // No tiene CLA asignado, solo puede ver territorio nacional
+                    clasDisponibles = [];
+                }
+            }
+            
+            // Ordenar CLAs alfabéticamente
+            clasDisponibles.sort((a, b) => a.name.localeCompare(b.name));
+            
+            // Agregar los CLAs disponibles
+            clasDisponibles.forEach((cla) => {
+                claSelect.append(
+                    $('<option></option>')
+                        .val(cla.id)
+                        .text(cla.name)
                 );
             });
-        }
-        
-        oficinaSelect.prop('disabled', false);
-        
-        console.log('✅ Oficinas cargadas:', oficinas.length);
-        
-    }.bind(this)).catch(function (error) {
-        console.error('❌ Error al cargar oficinas:', error);
-        oficinaSelect.html('<option value="">Error al cargar oficinas</option>');
-        oficinaSelect.prop('disabled', false);
-        Espo.Ui.error('Error al cargar las oficinas del CLA');
-    }.bind(this));
-},
+            
+            claSelect.prop('disabled', false);
+            
+            if (clasDisponibles.length === 0 && !this.permisos.esAdministrativo && !this.permisos.esCasaNacional) {
+                // Usuario sin CLA asignado, solo puede ver Territorio Nacional
+            }
+        },
+
+        // Cargar oficinas según CLA
+        loadOficinas: function (claId) {
+            var oficinaSelect = this.$el.find('#oficina-select');
+            
+            // Mostrar estado de carga
+            oficinaSelect.html('<option value="">Cargando oficinas...</option>');
+            oficinaSelect.prop('disabled', true);
+            
+            Promise.all([
+                this.fetchAllTeams(),
+                this.fetchUsuariosPorCLA(claId)
+            ]).then(function ([teams, usuariosConCLA]) {
+                var claPattern = /^CLA\d+$/i;
+                var oficinasIds = new Set();
+                
+                // Recopilar IDs de oficinas de los usuarios
+                usuariosConCLA.forEach(usuario => {
+                    var teamsIds = usuario.teamsIds || [];
+                    teamsIds.forEach(teamId => {
+                        // Excluir CLAs y team "Venezuela"
+                        if (!claPattern.test(teamId) && teamId.toLowerCase() !== 'venezuela') {
+                            oficinasIds.add(teamId);
+                        }
+                    });
+                });
+                
+                // Filtrar teams que son oficinas
+                var oficinas = teams.filter(t => oficinasIds.has(t.id));
+                
+                // Poblar select
+                oficinaSelect.html('<option value="">Todas las oficinas</option>');
+                
+                if (oficinas.length === 0) {
+                    oficinaSelect.append('<option value="" disabled>No hay oficinas disponibles</option>');
+                } else {
+                    // Ordenar alfabéticamente
+                    oficinas.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    
+                    oficinas.forEach(oficina => {
+                        oficinaSelect.append(
+                            `<option value="${oficina.id}">${oficina.name || oficina.id}</option>`
+                        );
+                    });
+                }
+                
+                oficinaSelect.prop('disabled', false);
+                
+            }.bind(this)).catch(function (error) {
+                // Error al cargar oficinas
+                oficinaSelect.html('<option value="">Error al cargar oficinas</option>');
+                oficinaSelect.prop('disabled', false);
+                Espo.Ui.error('Error al cargar las oficinas del CLA');
+            }.bind(this));
+        },
 
         registrarPluginsChart: function() {
             if (typeof Chart === 'undefined') return;
@@ -245,35 +333,35 @@ define('reportes-calidad-servicio:views/principal', ['view'], function (Dep) {
         },
 
         fetchAllTeams: function () {
-    return new Promise(function (resolve, reject) {
-        var maxSize = 200;
-        var allTeams = [];
-        
-        var fetchPage = function (offset) {
-            this.getCollectionFactory().create('Team', function (collection) {
-                collection.maxSize = maxSize;
-                collection.offset = offset;
+            return new Promise(function (resolve, reject) {
+                var maxSize = 200;
+                var allTeams = [];
                 
-                collection.fetch().then(function () {
-                    var models = collection.models || [];
-                    allTeams = allTeams.concat(models.map(m => ({
-                        id: m.id,
-                        name: m.get('name')
-                    })));
-                    if (models.length === maxSize && allTeams.length < collection.total) {
-                        fetchPage(offset + maxSize);
-                    } else {
-                        resolve(allTeams);
-                    }
-                }).catch(reject);
+                var fetchPage = function (offset) {
+                    this.getCollectionFactory().create('Team', function (collection) {
+                        collection.maxSize = maxSize;
+                        collection.offset = offset;
+                        
+                        collection.fetch().then(function () {
+                            var models = collection.models || [];
+                            allTeams = allTeams.concat(models.map(m => ({
+                                id: m.id,
+                                name: m.get('name')
+                            })));
+                            if (models.length === maxSize && allTeams.length < collection.total) {
+                                fetchPage(offset + maxSize);
+                            } else {
+                                resolve(allTeams);
+                            }
+                        }).catch(reject);
+                    }.bind(this));
+                }.bind(this);
+                
+                fetchPage(0);
             }.bind(this));
-        }.bind(this);
-        
-        fetchPage(0);
-    }.bind(this));
-},
+        },
 
-fetchUsuariosPorCLA: function (claId) {
+        fetchUsuariosPorCLA: function (claId) {
             return new Promise(function (resolve, reject) {
                 var maxSize = 200;
                 var allUsers = [];
@@ -296,7 +384,6 @@ fetchUsuariosPorCLA: function (claId) {
                             }));
                             
                             allUsers = allUsers.concat(filtered);
-                            console.log('TOMAS: ', allUsers);
                             if (models.length === maxSize && (offset + maxSize) < collection.total) {
                                 fetchPage(offset + maxSize);
                             } else {
@@ -310,49 +397,8 @@ fetchUsuariosPorCLA: function (claId) {
             }.bind(this));
         },
 
-/* fetchUsuariosPorCLA: function (claId) {
-    return new Promise(function (resolve, reject) {
-        var maxSize = 200;
-        var allUsers = [];
-        
-        var fetchPage = function (offset) {
-            this.getCollectionFactory().create('User', function (collection) {
-                collection.maxSize = maxSize;
-                collection.offset = offset;
-                
-                // CRÍTICO: NO usar where con teamsIds directamente
-                // En su lugar, filtraremos después de cargar
-                
-                collection.fetch().then(function () {
-                    var models = collection.models || [];
-                    
-                    // Filtrar usuarios que pertenecen al CLA
-                    var filtered = models.filter(u => {
-                        var teamsIds = u.get('teamsIds') || [];
-                        return teamsIds.includes(claId);
-                    }).map(m => ({
-                        id: m.id,
-                        teamsIds: m.get('teamsIds'),
-                        teamsNames: m.get('teamsNames')
-                    }));
-                    
-                    allUsers = allUsers.concat(filtered);
-                    
-                    if (models.length === maxSize && (offset + maxSize) < collection.total) {
-                        fetchPage(offset + maxSize);
-                    } else {
-                        resolve(allUsers);
-                    }
-                }).catch(reject);
-            }.bind(this));
-        }.bind(this);
-        
-        fetchPage(0);
-    }.bind(this));
-}, */
-
         initMappings: function() {
-            console.log('🔧 Inicializando mapeos según orden de campos de la BD...');
+            // Inicializando mapeos según orden de campos de la BD...
             
             this.camposOrdenBD = [
                 'created_at', 'email_address', 'operation_type', 'assigned_user_id',
@@ -401,85 +447,71 @@ fetchUsuariosPorCLA: function (claId) {
         },
 
         setupEventListeners: function() {
-    const fileInput = this.$el.find('#csv-file-input')[0];
-    const fileName = this.$el.find('#file-name')[0];
-    
-    if (fileInput && fileName) {
-        fileInput.addEventListener('change', function() {
-            if (this.files && this.files[0]) {
-                fileName.textContent = this.files[0].name;
-                fileName.classList.add('has-file');
-            } else {
-                fileName.textContent = 'No se ha seleccionado ningún archivo';
-                fileName.classList.remove('has-file');
+            const fileInput = this.$el.find('#csv-file-input')[0];
+            const fileName = this.$el.find('#file-name')[0];
+            
+            if (fileInput && fileName) {
+                fileInput.addEventListener('change', function() {
+                    if (this.files && this.files[0]) {
+                        fileName.textContent = this.files[0].name;
+                        fileName.classList.add('has-file');
+                    } else {
+                        fileName.textContent = 'No se ha seleccionado ningún archivo';
+                        fileName.classList.remove('has-file');
+                    }
+                });
             }
-        });
-    }
 
-    this.$el.find('[data-action="import"]').off('click').on('click', () => {
-        this.actionImport();
-    });
+            this.$el.find('[data-action="import"]').off('click').on('click', () => {
+                this.actionImport();
+            });
 
-    this.$el.find('[data-action="refresh"]').off('click').on('click', () => {
-        this.loadStatistics();
-    });
-    
-    // Event listener para CLA
-    this.$el.find('#cla-select').off('change').on('change', (e) => {
-        const claId = $(e.currentTarget).val();
-        
-        console.log('🔄 CLA seleccionado:', claId || 'Territorio Nacional');
-        
-        this.filtros.cla = claId || null;
-        this.filtros.oficina = null;
-        this.filtros.mostrarTodas = !claId; // True si es "Territorio Nacional"
-        
-        // Reset select de oficina
-        const oficinaSelect = this.$el.find('#oficina-select');
-        oficinaSelect.val('');
-        
-        if (claId) {
-            // Cargar oficinas del CLA seleccionado
-            this.loadOficinas(claId);
-        } else {
-            // Si es "Territorio Nacional", deshabilitar oficina
-            oficinaSelect.empty();
-            oficinaSelect.append('<option value="">Seleccione un CLA primero</option>');
-            oficinaSelect.prop('disabled', true);
-        }
-        
-        // Actualizar estadísticas
-        this.loadStatistics();
-    });
-    
-    // Event listener para Oficina
-    this.$el.find('#oficina-select').off('change').on('change', (e) => {
-        const oficinaId = $(e.currentTarget).val();
-        
-        console.log('🔄 Oficina seleccionada:', oficinaId || 'Todas las oficinas');
-        
-        this.filtros.oficina = oficinaId || null;
-        this.filtros.mostrarTodas = false;
-        
-        // Actualizar estadísticas
-        this.loadStatistics();
-    });
+            this.$el.find('[data-action="refresh"]').off('click').on('click', () => {
+                this.loadStatistics();
+            });
+            
+            // Event listener para CLA
+            this.$el.find('#cla-select').off('change').on('change', (e) => {
+                const claId = $(e.currentTarget).val();
+                
+                this.filtros.cla = claId || null;
+                this.filtros.oficina = null;
+                this.filtros.mostrarTodas = !claId; // True si es "Territorio Nacional"
+                
+                // Reset select de oficina
+                const oficinaSelect = this.$el.find('#oficina-select');
+                oficinaSelect.val('');
+                
+                if (claId) {
+                    // Cargar oficinas del CLA seleccionado
+                    this.loadOficinas(claId);
+                } else {
+                    // Si es "Territorio Nacional", deshabilitar oficina
+                    oficinaSelect.empty();
+                    oficinaSelect.append('<option value="">Seleccione un CLA primero</option>');
+                    oficinaSelect.prop('disabled', true);
+                }
+                
+                // Actualizar estadísticas
+                this.loadStatistics();
+            });
+            
+            // Event listener para Oficina
+            this.$el.find('#oficina-select').off('change').on('change', (e) => {
+                const oficinaId = $(e.currentTarget).val();
+                
+                this.filtros.oficina = oficinaId || null;
+                this.filtros.mostrarTodas = false;
+                
+                // Actualizar estadísticas
+                this.loadStatistics();
+            });
+            
+        },
 
-    /* oficinaSelect.on('change', function (e) {
-        var valor = $(e.currentTarget).val();
-        
-        console.log('🔄 Oficina seleccionada:', valor || 'Todas las oficinas');
-        
-        this.filtros.oficina = valor || null;
-        this.filtros.mostrarTodas = false; // Ya no es territorio nacional
-        
-        // Actualizar estadísticas con el nuevo filtro
-        this.loadStatistics();
-    }.bind(this)); */
-},
         validateAndTransformCSV: function(csvData) {
             try {
-                console.log('🔄 Procesando CSV con validación estricta...');
+                // Procesando CSV con validación estricta...
                 
                 const lines = csvData.split('\n').filter(line => line.trim());
                 if (lines.length < 2) {
@@ -492,10 +524,8 @@ fetchUsuariosPorCLA: function (claId) {
                 }
                 
                 const headers = this.parseCSVLine(lines[0], null);
-                console.log('📋 Headers encontrados:', headers);
 
                 const columnMapping = this.findColumnsInCSV(headers);
-                console.log('🎯 Mapeo de columnas:', columnMapping);
 
                 if (!columnMapping.clientName) {
                     return {
@@ -531,9 +561,6 @@ fetchUsuariosPorCLA: function (claId) {
                         warnings.push(`Línea ${i + 1}: ${error.message}`);
                     }
                 }
-
-                console.log(`✅ Procesados ${transformedData.length} registros`);
-                console.log(`🔧 Aplicadas ${scaleCorrections.length} correcciones de escala`);
                 
                 return {
                     success: true,
@@ -549,7 +576,7 @@ fetchUsuariosPorCLA: function (claId) {
                 };
 
             } catch (error) {
-                console.error('💥 Error crítico:', error);
+                // Error crítico
                 return {
                     success: false,
                     data: [],
@@ -568,9 +595,6 @@ fetchUsuariosPorCLA: function (claId) {
                 
                 if (foundColumn) {
                     mapping[fieldName] = foundColumn;
-                    console.log(`✅ ${fieldName} → "${foundColumn}"`);
-                } else {
-                    console.warn(`⚠️ ${fieldName} → NO encontrado (buscaba "${csvColumn}")`);
                 }
             });
             
@@ -611,8 +635,6 @@ fetchUsuariosPorCLA: function (claId) {
         transformRow: function(csvRow, columnMapping, lineNumber) {
             const transformed = {};
             const corrections = [];
-            
-            console.log(`🔄 Transformando línea ${lineNumber}...`);
 
             // 1. created_at
             if (columnMapping.createdAt && csvRow[columnMapping.createdAt]) {
@@ -750,7 +772,18 @@ fetchUsuariosPorCLA: function (claId) {
         },
 
         actionImport: function() {
+
+            if (!this.permisos.puedeImportar) {
+                Espo.Ui.error('❌ No tiene permisos para importar encuestas. Solo usuarios administrativos pueden realizar esta acción.', null, 10000);
+                return;
+            }
+            
             const fileInput = this.$el.find('#csv-file-input')[0];
+            
+            if (!fileInput?.files?.[0]) {
+                Espo.Ui.warning('Por favor selecciona un archivo CSV primero.', null, 8000);
+                return;
+            }
             
             if (!fileInput?.files?.[0]) {
                 Espo.Ui.warning('Por favor selecciona un archivo CSV primero.', null, 8000);
@@ -764,7 +797,7 @@ fetchUsuariosPorCLA: function (claId) {
                 return;
             }
             
-            console.log('📤 Procesando archivo:', file.name);
+            // Procesando archivo
             Espo.Ui.notify('🔍 Validando estructura del CSV...', 'info', 60000);
             this.wait(true);
             
@@ -796,7 +829,7 @@ fetchUsuariosPorCLA: function (claId) {
                     this.iniciarProcesoDeCarga(validationResult.data);
                     
                 } catch (error) {
-                    console.error('💥 Error:', error);
+                    // Error
                     Espo.Ui.error('❌ ERROR: ' + error.message, null, 10000);
                     this.wait(false);
                 }
@@ -812,7 +845,7 @@ fetchUsuariosPorCLA: function (claId) {
 
         iniciarProcesoDeCarga: async function(encuestasValidadas) {
             try {
-                console.log('📤 Enviando datos al servidor...');
+                // Enviando datos al servidor...
                 
                 if (!encuestasValidadas || encuestasValidadas.length === 0) {
                     throw new Error('No hay datos válidos para importar');
@@ -823,8 +856,6 @@ fetchUsuariosPorCLA: function (claId) {
                 const result = await Espo.Ajax.postRequest('CCustomerSurvey/action/importarEncuestas', {
                     encuestas: encuestasValidadas
                 });
-                
-                console.log('📨 Respuesta del servidor:', result);
                 
                 if (result.success) {
                     let mensaje = `✅ IMPORTACIÓN EXITOSA<br><br>`;
@@ -847,7 +878,7 @@ fetchUsuariosPorCLA: function (claId) {
                 }
                 
             } catch (error) {
-                console.error('💥 Error en importación:', error);
+                // Error en importación
                 Espo.Ui.error('❌ ERROR: ' + error.message, null, 15000);
             } finally {
                 this.wait(false);
@@ -855,51 +886,62 @@ fetchUsuariosPorCLA: function (claId) {
         },
 
         loadStatistics: function () {
-    console.log('📞 Solicitando estadísticas con filtros:', this.filtros);
-    
-    this.isLoading = true;
-    this.hasData = false;
-    this.showLoadingState();
-
-    // Construir parámetros
-    const params = {};
-    
-    // CORREGIDO: Cuando mostrarTodas es true, NO enviar parámetros de filtro
-    if (this.filtros.mostrarTodas) {
-        console.log('📊 Mostrando TODAS las encuestas completadas (Territorio Nacional)');
-        // No agregar claId ni oficinaId
-    } else {
-        if (this.filtros.oficina) {
-            params.oficinaId = this.filtros.oficina;
-            console.log('🏪 Filtrando por oficina:', this.filtros.oficina);
-        } else if (this.filtros.cla) {
-            params.claId = this.filtros.cla;
-            console.log('📊 Filtrando por CLA:', this.filtros.cla);
-        }
-    }
-
-    Espo.Ajax.getRequest('CCustomerSurvey/action/getStats', params)
-        .then((response) => {
-            console.log('✅ Estadísticas recibidas:', response);
+            // Solicitando estadísticas con filtros
             
-            if (response && response.success && response.data) {
-                this.stats = this.procesarEstadisticasReales(response.data);
-                this.hasData = this.stats.totalEncuestas > 0;
-                this.isLoading = false;
-                this.updateUI();
+            this.isLoading = true;
+            this.hasData = false;
+            this.showLoadingState();
+
+            const params = {};
+            
+            if (this.filtros.mostrarTodas) {
+                // Mostrando TODAS las encuestas completadas (Territorio Nacional)
             } else {
-                console.warn('⚠️ Respuesta vacía o sin datos');
-                this.handleNoData();
+                if (this.filtros.oficina) {
+                    params.oficinaId = this.filtros.oficina;
+                    // Filtrando por oficina
+                } else if (this.filtros.cla) {
+                    params.claId = this.filtros.cla;
+                    // Filtrando por CLA
+                }
             }
-        })
-        .catch((error) => {
-            console.error('❌ Error cargando estadísticas:', error);
-            this.handleNoData();
-        });
-},
+
+            Espo.Ajax.getRequest('CCustomerSurvey/action/getStats', params)
+                .then((response) => {
+                    
+                    if (response && response.success && response.data) {
+                        // Actualizar permisos desde el servidor
+                        if (response.permisos) {
+                            this.permisos.esAdministrativo = response.permisos.esAdministrativo;
+                            this.permisos.esCasaNacional = response.permisos.esCasaNacional;
+                            this.permisos.puedeImportar = response.permisos.puedeImportar;
+                            
+                            this.aplicarRestriccionesUI();
+                        }
+                        
+                        this.stats = this.procesarEstadisticasReales(response.data);
+                        this.hasData = this.stats.totalEncuestas > 0;
+                        this.isLoading = false;
+                        this.updateUI();
+                    } else {
+                        // Respuesta vacía o sin datos
+                        this.handleNoData();
+                    }
+                })
+                .catch((error) => {
+                    // Error cargando estadísticas
+                    
+                    // Si es error de permisos, mostrar mensaje específico
+                    if (error.message && error.message.includes('permisos')) {
+                        Espo.Ui.error('No tiene permisos para ver estas estadísticas');
+                    }
+                    
+                    this.handleNoData();
+                });
+        },
 
         procesarEstadisticasReales: function(datosBackend) {
-            console.log('🔄 Procesando estadísticas reales desde backend:', datosBackend);
+            // Procesando estadísticas reales desde backend
             
             // Extraer promedios de categorías del backend
             const promediosBackend = datosBackend.promediosCategorias || {};
@@ -963,10 +1005,10 @@ fetchUsuariosPorCLA: function (claId) {
         },
 
         renderCharts: function() {
-            console.log('📊 Renderizando gráficos con datos reales...');
+            // Renderizando gráficos con datos reales...
             
             if (typeof Chart === 'undefined') {
-                console.error('❌ Chart.js no está disponible');
+                // Chart.js no está disponible
                 this.mostrarErrorChartJS();
                 return;
             }
@@ -987,9 +1029,9 @@ fetchUsuariosPorCLA: function (claId) {
                 this.renderHorizontalBarChart();
                 this.renderDistributionChart();
                 
-                console.log('✅ Todos los gráficos renderizados correctamente');
+                // Todos los gráficos renderizados correctamente
             } catch (error) {
-                console.error('💥 Error al renderizar gráficos:', error);
+                // Error al renderizar gráficos
                 this.mostrarErrorChartJS();
             }
         },
@@ -1042,9 +1084,8 @@ fetchUsuariosPorCLA: function (claId) {
                             }
                         }
                     });
-                    console.log('✅ Gráfico de donut creado');
                 } catch (error) {
-                    console.error('❌ Error creando gráfico de donut:', error);
+                    // Error creando gráfico de donut
                 }
             }
         },
@@ -1091,9 +1132,8 @@ fetchUsuariosPorCLA: function (claId) {
                             }
                         }
                     });
-                    console.log('✅ Gráfico de barras creado');
                 } catch (error) {
-                    console.error('❌ Error creando gráfico de barras:', error);
+                    // Error creando gráfico de barras
                 }
             }
         },
@@ -1179,9 +1219,8 @@ fetchUsuariosPorCLA: function (claId) {
                             }
                         }
                     });
-                    console.log('✅ Gráfico de radar creado con datos reales');
                 } catch (error) {
-                    console.error('❌ Error creando gráfico de radar:', error);
+                    // Error creando gráfico de radar
                 }
             }
         },
@@ -1267,9 +1306,8 @@ fetchUsuariosPorCLA: function (claId) {
                             }
                         }
                     });
-                    console.log('✅ Gráfico de barras horizontales creado con datos reales');
                 } catch (error) {
-                    console.error('❌ Error creando gráfico de barras horizontales:', error);
+                    // Error creando gráfico de barras horizontales
                 }
             }
         },
@@ -1333,9 +1371,8 @@ fetchUsuariosPorCLA: function (claId) {
                             }
                         }
                     });
-                    console.log('✅ Gráfico de distribución creado con datos reales');
                 } catch (error) {
-                    console.error('❌ Error creando gráfico de distribución:', error);
+                    // Error creando gráfico de distribución
                 }
             }
         },
