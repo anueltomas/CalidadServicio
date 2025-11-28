@@ -13,51 +13,49 @@ define('reportes-calidad-servicio:views/modules/permisos', [], function () {
     };
 
     PermisosManager.prototype.cargarPermisosUsuario = function () {
-    var self = this;
-    return new Promise(function (resolve, reject) {
-        var user = self.view.getUser();
-        
-        self.view.getModelFactory().create('User', function (userModel) {
-            userModel.id = user.id;
-            userModel.fetch({ relations: { roles: true, teams: true } }).then(function () {
-                var roles = Object.values(userModel.get('rolesNames') || {}).map(function (r) {
-                    return r.toLowerCase();
+        var self = this;
+        return new Promise(function (resolve, reject) {
+            var user = self.view.getUser();
+            
+            self.view.getModelFactory().create('User', function (userModel) {
+                userModel.id = user.id;
+                userModel.fetch({ relations: { roles: true, teams: true } }).then(function () {
+                    var roles = Object.values(userModel.get('rolesNames') || {}).map(function (r) {
+                        return r.toLowerCase();
+                    });
+                    var teamsIds = userModel.get('teamsIds') || [];
+                    var defaultTeamId = userModel.get('default_team_id');
+                    
+                    // ✅ CORRECCIÓN: Solo verificar isAdmin() para permisos de importación
+                    self.permisos.esAdministrativo = user.isAdmin();
+                    self.permisos.esCasaNacional = roles.includes('casa nacional');
+                    
+                    // ✅ IMPORTANTE: Solo type=admin puede importar
+                    self.permisos.puedeImportar = user.isAdmin();
+                    
+                    // Determinar CLA del usuario
+                    var claPattern = /^CLA\d+$/i;
+                    self.permisos.claUsuario = teamsIds.find(function (id) {
+                        return claPattern.test(id);
+                    }) || null;
+                    
+                    // Determinar oficina del usuario
+                    if (defaultTeamId && 
+                        !claPattern.test(defaultTeamId) && 
+                        defaultTeamId.toLowerCase() !== 'venezuela') {
+                        self.permisos.oficinaUsuario = defaultTeamId;
+                    }
+                    
+                    self.permisos.permisosListo = true;
+                    
+                    self.aplicarRestriccionesUI();
+                    resolve(self.permisos);
+                }).catch(function(error) {
+                    reject(error);
                 });
-                var teamsIds = userModel.get('teamsIds') || [];
-                var defaultTeamId = userModel.get('default_team_id');
-                
-                // Determinar tipo de usuario
-                self.permisos.esAdministrativo = user.isAdmin() || 
-                                               roles.includes('administrativo') || 
-                                               roles.includes('administrator') || 
-                                               roles.includes('admin');
-                
-                self.permisos.esCasaNacional = roles.includes('casa nacional');
-                self.permisos.puedeImportar = self.permisos.esAdministrativo;
-                
-                // Determinar CLA del usuario
-                var claPattern = /^CLA\d+$/i;
-                self.permisos.claUsuario = teamsIds.find(function (id) {
-                    return claPattern.test(id);
-                }) || null;
-                
-                // Determinar oficina del usuario (default_team_id que NO sea CLA)
-                if (defaultTeamId && 
-                    !claPattern.test(defaultTeamId) && 
-                    defaultTeamId.toLowerCase() !== 'venezuela') {
-                    self.permisos.oficinaUsuario = defaultTeamId;
-                }
-                
-                self.permisos.permisosListo = true;
-                
-                self.aplicarRestriccionesUI();
-                resolve(self.permisos);
-            }).catch(function(error) {
-                reject(error);
             });
         });
-    });
-};
+    };
 
     PermisosManager.prototype.aplicarRestriccionesUI = function () {
         if (!this.view.$el) return;

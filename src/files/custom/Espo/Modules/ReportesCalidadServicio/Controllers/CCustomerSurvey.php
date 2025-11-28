@@ -8,6 +8,8 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
 {
 
 
+    // ✅ Esta función ya no se necesita para validar importación
+    // pero la mantenemos por si se usa en getStats
     protected function getUserRoles($entityManager, $userId)
     {
         try {
@@ -59,19 +61,18 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 throw new Error("No se pudo obtener entityManager");
             }
 
-            // NUEVO: Validar permisos de usuario
+            // ✅ CORRECCIÓN: Validar solo si es admin (type)
             $user = $this->getContainer()->get('user');
-            $userId = $user->get('id');
-            $roles = $this->getUserRoles($entityManager, $userId);
             
-            if (!$this->esAdministrativo($roles)) {
+            // Verificar si el usuario es admin por tipo
+            if (!$user->isAdmin()) {
                 return [
                     'success' => false,
                     'error' => 'No tiene permisos para importar encuestas',
                     'total' => 0,
                     'procesadas' => 0,
                     'duplicadas' => 0,
-                    'errores' => ['Acceso denegado: Solo usuarios administrativos pueden importar']
+                    'errores' => ['Acceso denegado: Solo usuarios tipo Admin pueden importar']
                 ];
             }
             
@@ -145,20 +146,20 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             $user = $this->getContainer()->get('user');
             $userId = $user->get('id');
             
-            // Obtener roles del usuario
+            // ✅ Verificar si es admin por tipo
+            $esAdmin = $user->isAdmin();
+            
+            // Obtener roles del usuario para Casa Nacional
             $roles = $this->getUserRoles($entityManager, $userId);
+            $esCasaNac = $this->esCasaNacional($roles);
             
             // Obtener parámetros de filtro
             $claId = $request->get('claId');
             $oficinaId = $request->get('oficinaId');
             
             // Validar permisos según rol
-            $esAdmin = $this->esAdministrativo($roles);
-            $esCasaNac = $this->esCasaNacional($roles);
-            
-            // Si no es admin ni casa nacional, validar que solo vea su CLA o territorio nacional
             if (!$esAdmin && !$esCasaNac) {
-                // Obtener CLA del usuario
+                // Usuario regular - validar CLA
                 $userTeams = $this->getUserTeams($entityManager, $userId);
                 $userClaId = $this->extractCLAFromTeams($userTeams);
                 
@@ -182,7 +183,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 'permisos' => [
                     'esAdministrativo' => $esAdmin,
                     'esCasaNacional' => $esCasaNac,
-                    'puedeImportar' => $esAdmin
+                    'puedeImportar' => $esAdmin  // ✅ Solo admins pueden importar
                 ]
             ];
             
