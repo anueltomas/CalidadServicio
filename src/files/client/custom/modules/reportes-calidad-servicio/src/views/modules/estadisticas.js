@@ -1,22 +1,11 @@
 define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
     
-    // ✅ DEFINIR EL CONSTRUCTOR PRIMERO
     var EstadisticasManager = function(view) {
         this.view = view;
         this.stats = this.getStatsIniciales();
-        console.log('✅ EstadisticasManager instanciado');
     };
 
-    // ✅ VERIFICAR QUE ESTÉ BIEN DEFINIDO
-    EstadisticasManager.prototype.getStats = function() {
-        console.log('📊 Obteniendo estadísticas actuales...');
-        console.log('Stats disponibles:', this.stats);
-        return this.stats;
-    };
-
-    // ✅ LUEGO AGREGAR MÉTODOS AL PROTOTIPO
     EstadisticasManager.prototype.getStatsIniciales = function() {
-        console.log('📊 Obteniendo stats iniciales...');
         return {
             totalEncuestas: 0,
             satisfaccionPromedio: 0,
@@ -41,53 +30,40 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
     };
 
     EstadisticasManager.prototype.loadStatistics = function() {
-    console.log('📊 Cargando estadísticas desde módulo...');
-    this.view.isLoading = true;
-    this.view.hasData = false;
-    this.showLoadingState();
+        this.view.isLoading = true;
+        this.view.hasData = false;
+        this.showLoadingState();
 
-    var filtros = this.view.filtrosCLAManager.getFiltros();
-    var params = {};
+        var filtros = this.view.filtrosCLAManager.getFiltros();
+        var params = {};
 
-    // Enviar parámetros de filtro al backend
-    if (filtros.cla) {
-        params.claId = filtros.cla;
-    }
-    if (filtros.oficina) {
-        params.oficinaId = filtros.oficina;
-    }
-    
-    console.log('🌐 Haciendo request a CCustomerSurvey/action/getStats...');
-    
-    Espo.Ajax.getRequest('CCustomerSurvey/action/getStats', params)
-        .then(function(response) {
-            console.log('✅ Respuesta del servidor recibida:', response);
-            
-            if (response && response.success && response.data) {
-                console.log('📈 Datos recibidos del servidor:', response.data);
-                this.stats = this.procesarEstadisticasReales(response.data);
-                this.view.hasData = this.stats.totalEncuestas > 0;
-                this.view.isLoading = false;
-                
-                console.log('🔄 Estado después de procesar:', {
-                    hasData: this.view.hasData,
-                    totalEncuestas: this.stats.totalEncuestas,
-                    isLoading: this.view.isLoading
-                });
-                
-                this.updateUI();
-            } else {
-                console.log('⚠️ No hay datos en la respuesta o success es false');
-                console.log('Response:', response);
-                this.handleNoData();
+        if (filtros.mostrarTodas) {
+        } else {
+            if (filtros.cla) {
+                params.claId = filtros.cla;
             }
-        }.bind(this))
-        .catch(function(error) {
-            console.error('❌ Error cargando estadísticas:', error);
-            console.error('Error details:', error.message, error.status);
-            this.handleNoData();
-        }.bind(this));
-};
+            
+            if (filtros.oficina) {
+                params.oficinaId = filtros.oficina;
+            }
+        }
+        
+        Espo.Ajax.getRequest('CCustomerSurvey/action/getStats', params)
+            .then(function(response) {
+                if (response && response.success && response.data) {
+                    this.stats = this.procesarEstadisticasReales(response.data);
+                    this.view.hasData = this.stats.totalEncuestas > 0;
+                    this.view.isLoading = false;
+                    
+                    this.updateUI();
+                } else {
+                    this.handleNoData();
+                }
+            }.bind(this))
+            .catch(function(error) {
+                this.handleNoData();
+            }.bind(this));
+    };
 
     EstadisticasManager.prototype.procesarEstadisticasReales = function(datosBackend) {
         var promediosBackend = datosBackend.promediosCategorias || {};
@@ -129,61 +105,37 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
     };
 
     EstadisticasManager.prototype.updateUI = function() {
-        console.log('🔄 Actualizando UI...', {
-            isLoading: this.view.isLoading,
-            hasData: this.view.hasData,
-            totalEncuestas: this.stats.totalEncuestas
-        });
-        
         var container = this.view.$el.find('#dynamic-content-container')[0];
         if (!container) {
-            console.error('❌ No se encontró #dynamic-content-container');
             return;
         }
 
         if (this.view.isLoading) {
-            console.log('⏳ Mostrando estado de carga...');
             container.innerHTML = this.getLoadingHTML();
         } else if (this.view.hasData) {
-            console.log('📈 Mostrando datos con', this.stats.totalEncuestas, 'encuestas...');
             container.innerHTML = this.getDataHTML();
             
-            // ✅ LLAMAR A RENDERCHARTS CON VERIFICACIÓN COMPLETA
             setTimeout(function() {
-                console.log('🔄 Intentando renderizar gráficos...');
-                
-                // Verificación completa de graficosManager
                 if (!this.view.graficosManager) {
-                    console.error('❌ graficosManager no está definido en la vista');
                     return;
                 }
                 
                 if (typeof this.view.graficosManager.renderCharts !== 'function') {
-                    console.error('❌ renderCharts no es una función en graficosManager');
-                    console.log('Métodos disponibles en graficosManager:', Object.keys(this.view.graficosManager));
                     return;
                 }
                 
-                // Verificar que las stats estén disponibles
                 if (!this.stats || this.stats.totalEncuestas === 0) {
-                    console.error('❌ No hay estadísticas disponibles para gráficos');
                     return;
                 }
-                
-                console.log('✅ Llamando a graficosManager.renderCharts()');
                 
                 try {
                     this.view.graficosManager.renderCharts();
-                    console.log('✅ renderCharts ejecutado exitosamente');
                 } catch (error) {
-                    console.error('❌ Error al ejecutar renderCharts:', error);
                 }
                 
-            }.bind(this), 200); // Aumenté el delay a 200ms para asegurar que el DOM esté listo
+            }.bind(this), 200);
         } else {
-            console.log('📭 Mostrando estado vacío...');
             container.innerHTML = this.getEmptyHTML();
-            this.setupEmptyEventListeners();
         }
     };
 
@@ -210,11 +162,22 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
         var compraPct = total > 0 ? Math.round((compra / total) * 100) : 0;
         var alquilerPct = total > 0 ? Math.round((alquiler / total) * 100) : 0;
         
+        var filtros = this.view.filtrosCLAManager.getFiltros();
+        var tituloFiltro = '';
+
+        if (filtros.mostrarTodas) {
+            tituloFiltro = '<span class="badge badge-primary">Territorio Nacional - Todas las estadísticas</span>';
+        } else if (filtros.oficina) {
+            tituloFiltro = '<span class="badge badge-success">Oficina: ' + filtros.oficina + '</span>';
+        } else if (filtros.cla) {
+            tituloFiltro = '<span class="badge badge-info">CLA: ' + filtros.cla + ' - Todas sus oficinas</span>';
+        }
+
         return `
             <div class="reporte-container">
                 <!-- Información de Encuesta -->
                 <div class="info-encuesta-card">
-                    <h3 class="info-title">Información de Encuesta</h3>
+                    <h3 class="info-title">Información de Encuesta ${tituloFiltro}</h3>
                     <table class="info-table">
                         <tr>
                             <td class="info-label">Total encuestados:</td>
@@ -266,7 +229,7 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
                                     <td>${alquilerPct}%</td>
                                 </tr>
                                 <tr class="total-row">
-                                    <td><strong>Total de Operaciones Individualmente:</strong></td>
+                                    <td><strong>Total de Operaciones:</strong></td>
                                     <td><strong>${total}</strong></td>
                                     <td><strong>100%</strong></td>
                                 </tr>
@@ -334,19 +297,23 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
     };
 
     EstadisticasManager.prototype.getEmptyHTML = function() {
+        var filtros = this.view.filtrosCLAManager.getFiltros();
+        var mensaje = 'No hay datos disponibles';
+        
+        if (filtros.oficina) {
+            mensaje = 'No hay datos para esta oficina';
+        } else if (filtros.cla) {
+            mensaje = 'No hay datos para este CLA';
+        }
+        
         return `
             <div class="empty-alert">
                 <div class="empty-icon">📊</div>
-                <h3>No hay datos disponibles</h3>
-                <p class="text-muted">El servidor no retornó datos.</p>
+                <h3>${mensaje}</h3>
+                <p class="text-muted">No se encontraron encuestas con los filtros seleccionados.</p>
             </div>
         `;
     };
 
-    EstadisticasManager.prototype.setupEmptyEventListeners = function() {
-        // Event listeners para estado vacío
-    };
-
-    // ✅ RETORNAR EL CONSTRUCTOR
     return EstadisticasManager;
 });

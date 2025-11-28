@@ -1,4 +1,4 @@
-define('reportes-calidad-servicio:views/modules/permisos', function () {
+define('reportes-calidad-servicio:views/modules/permisos', [], function () {
     
     var PermisosManager = function (view) {
         this.view = view;
@@ -7,41 +7,57 @@ define('reportes-calidad-servicio:views/modules/permisos', function () {
             esCasaNacional: false,
             puedeImportar: false,
             claUsuario: null,
+            oficinaUsuario: null,
             permisosListo: false
         };
     };
 
     PermisosManager.prototype.cargarPermisosUsuario = function () {
-        var self = this;
-        return new Promise(function (resolve, reject) {
-            var user = self.view.getUser();
-            
-            self.view.getModelFactory().create('User', function (userModel) {
-                userModel.id = user.id;
-                userModel.fetch({ relations: { roles: true, teams: true } }).then(function () {
-                    var roles = Object.values(userModel.get('rolesNames') || {}).map(function (r) {
-                        return r.toLowerCase();
-                    });
-                    var teamsIds = userModel.get('teamsIds') || [];
-                    
-                    self.permisos.esAdministrativo = roles.includes('administrativo') || 
-                                                   roles.includes('administrator') || 
-                                                   roles.includes('admin');
-                    self.permisos.esCasaNacional = roles.includes('casa nacional');
-                    self.permisos.puedeImportar = self.permisos.esAdministrativo;
-                    
-                    var claPattern = /^CLA\d+$/i;
-                    self.permisos.claUsuario = teamsIds.find(function (id) {
-                        return claPattern.test(id);
-                    }) || null;
-                    self.permisos.permisosListo = true;
-                    
-                    self.aplicarRestriccionesUI();
-                    resolve(self.permisos);
-                }).catch(reject);
+    var self = this;
+    return new Promise(function (resolve, reject) {
+        var user = self.view.getUser();
+        
+        self.view.getModelFactory().create('User', function (userModel) {
+            userModel.id = user.id;
+            userModel.fetch({ relations: { roles: true, teams: true } }).then(function () {
+                var roles = Object.values(userModel.get('rolesNames') || {}).map(function (r) {
+                    return r.toLowerCase();
+                });
+                var teamsIds = userModel.get('teamsIds') || [];
+                var defaultTeamId = userModel.get('default_team_id');
+                
+                // Determinar tipo de usuario
+                self.permisos.esAdministrativo = user.isAdmin() || 
+                                               roles.includes('administrativo') || 
+                                               roles.includes('administrator') || 
+                                               roles.includes('admin');
+                
+                self.permisos.esCasaNacional = roles.includes('casa nacional');
+                self.permisos.puedeImportar = self.permisos.esAdministrativo;
+                
+                // Determinar CLA del usuario
+                var claPattern = /^CLA\d+$/i;
+                self.permisos.claUsuario = teamsIds.find(function (id) {
+                    return claPattern.test(id);
+                }) || null;
+                
+                // Determinar oficina del usuario (default_team_id que NO sea CLA)
+                if (defaultTeamId && 
+                    !claPattern.test(defaultTeamId) && 
+                    defaultTeamId.toLowerCase() !== 'venezuela') {
+                    self.permisos.oficinaUsuario = defaultTeamId;
+                }
+                
+                self.permisos.permisosListo = true;
+                
+                self.aplicarRestriccionesUI();
+                resolve(self.permisos);
+            }).catch(function(error) {
+                reject(error);
             });
         });
-    };
+    });
+};
 
     PermisosManager.prototype.aplicarRestriccionesUI = function () {
         if (!this.view.$el) return;
@@ -58,6 +74,14 @@ define('reportes-calidad-servicio:views/modules/permisos', function () {
 
     PermisosManager.prototype.getPermisos = function () {
         return this.permisos;
+    };
+
+    PermisosManager.prototype.puedeVerTodosCLAs = function() {
+        return this.permisos.esAdministrativo || this.permisos.esCasaNacional;
+    };
+
+    PermisosManager.prototype.puedeVerTodasOficinas = function() {
+        return this.permisos.esAdministrativo || this.permisos.esCasaNacional;
     };
 
     return PermisosManager;

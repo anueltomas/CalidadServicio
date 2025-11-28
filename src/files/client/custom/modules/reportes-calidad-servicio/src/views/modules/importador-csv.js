@@ -1,18 +1,13 @@
 define('reportes-calidad-servicio:views/modules/importador-csv', [], function () {
     
-    // ✅ 1. DEFINIR EL CONSTRUCTOR
     var ImportadorCSV = function(view) {
         this.view = view;
-        console.log('✅ ImportadorCSV instanciado');
         
         // Inicializar mapeos en el constructor si es necesario
         this.initMappings();
     };
 
-    // ✅ 2. AGREGAR MÉTODOS AL PROTOTIPO
     ImportadorCSV.prototype.initMappings = function() {
-        console.log('🗂️ Inicializando mapeos CSV...');
-        
         this.camposOrdenBD = [
             'created_at', 'email_address', 'operation_type', 'assigned_user_id',
             'communicationEffectiveness', 'legal_advice', 'personal_presentation',
@@ -64,13 +59,9 @@ define('reportes-calidad-servicio:views/modules/importador-csv', [], function ()
             'detailManagement', 'punctuality', 'commitmentLevel', 'problemSolving',
             'fullSupport', 'unexpectedSituations', 'negotiationTiming', 'officeRating'
         ];
-        
-        console.log('✅ Mapeos CSV inicializados correctamente');
     };
 
     ImportadorCSV.prototype.actionImport = function() {
-        console.log('📤 Iniciando importación CSV...');
-        
         if (!this.view.permisosManager.permisos.puedeImportar) {
             Espo.Ui.error('❌ No tiene permisos para importar encuestas. Solo usuarios administrativos pueden realizar esta acción.', null, 10000);
             return;
@@ -82,10 +73,8 @@ define('reportes-calidad-servicio:views/modules/importador-csv', [], function ()
             return;
         }
         
-        // Tu lógica de importación aquí
         Espo.Ui.info('Función de importación lista - Módulo cargado correctamente');
     };
 
-    // ✅ 3. RETORNAR EL CONSTRUCTOR
     return ImportadorCSV;
 });

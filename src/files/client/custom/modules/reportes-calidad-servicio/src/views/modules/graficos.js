@@ -3,11 +3,9 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
     var GraficosManager = function(view) {
         this.view = view;
         this.charts = {};
-        console.log('✅ GraficosManager instanciado');
     };
 
     GraficosManager.prototype.registrarPluginsChart = function() {
-        console.log('📊 Registrando plugins de Chart.js...');
         if (typeof Chart === 'undefined') return;
 
         var barLabelsPlugin = {
@@ -51,57 +49,34 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
         };
         
         Chart.register(barLabelsPlugin);
-        console.log('✅ Plugins de Chart.js registrados');
     };
 
     GraficosManager.prototype.renderCharts = function() {
-        console.log('🎨 Iniciando renderCharts...');
-        
-        // ✅ VERIFICACIÓN COMPLETA DEL ENTORNO
         if (!this.view) {
-            console.error('❌ View no disponible en graficosManager');
             return;
         }
         
         if (!this.view.estadisticasManager) {
-            console.error('❌ estadisticasManager no disponible en la vista');
             return;
         }
         
-        // ✅ ACCESO DIRECTO A LAS STATS - SOLUCIÓN DEFINITIVA
         var stats = this.view.estadisticasManager.stats;
         
         if (!stats) {
-            console.error('❌ No hay stats disponibles en estadisticasManager');
-            console.log('estadisticasManager object:', this.view.estadisticasManager);
             return;
         }
         
-        console.log('📊 Estadísticas obtenidas (acceso directo):', {
-            totalEncuestas: stats.totalEncuestas,
-            distribucionOperaciones: stats.distribucionOperaciones,
-            promediosCategorias: stats.promediosCategorias
-        });
-        
-        // ✅ VERIFICAR QUE HAY DATOS VÁLIDOS
         if (stats.totalEncuestas === 0) {
-            console.log('📭 No hay encuestas para mostrar gráficos');
             return;
         }
         
-        // ✅ VERIFICAR CHART.JS
         if (typeof Chart === 'undefined') {
-            console.error('❌ Chart.js no está disponible');
             this.mostrarErrorChartJS();
             return;
         }
         
-        console.log('✅ Chart.js disponible, procediendo con gráficos...');
-        
-        // ✅ DESTRUIR GRÁFICOS ANTERIORES
         this.destroyCharts();
         
-        // ✅ OBTENER DATOS PARA GRÁFICOS
         var distribucion = stats.distribucionOperaciones || {};
         var promedios = stats.promediosCategorias || {};
         var distribucionCalificaciones = stats.distribucionCalificaciones || {};
@@ -110,62 +85,34 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
         var compra = distribucion['Compra'] || 0;
         var alquiler = distribucion['Alquiler'] || 0;
         
-        console.log('📈 Datos para gráficos:', {
-            venta: venta,
-            compra: compra, 
-            alquiler: alquiler,
-            promedios: promedios
-        });
-        
-        // ✅ RENDERIZAR TODOS LOS GRÁFICOS
         try {
-            console.log('🔄 Renderizando gráfico donut...');
             this.renderDonutChart(venta, compra, alquiler);
-            
-            console.log('🔄 Renderizando gráfico de barras...');
             this.renderBarChart(venta, compra, alquiler);
-            
-            console.log('🔄 Renderizando gráfico radar...');
             this.renderRadarChart(promedios);
-            
-            console.log('🔄 Renderizando gráfico de barras horizontales...');
             this.renderHorizontalBarChart(promedios);
-            
-            console.log('🔄 Renderizando gráfico de distribución...');
             this.renderDistributionChart(distribucionCalificaciones);
             
-            console.log('✅ Todos los gráficos renderizados exitosamente');
-            
         } catch (error) {
-            console.error('❌ Error crítico renderizando gráficos:', error);
             this.mostrarErrorChartJS();
         }
     };
 
     GraficosManager.prototype.destroyCharts = function() {
-        console.log('🗑️ Destruyendo gráficos anteriores...');
-        var chartCount = Object.keys(this.charts).length;
-        
         Object.values(this.charts).forEach(function(chart) {
             if (chart && typeof chart.destroy === 'function') {
                 try {
                     chart.destroy();
                 } catch (error) {
-                    console.warn('⚠️ Error destruyendo chart:', error);
                 }
             }
         });
         this.charts = {};
-        console.log('✅ Gráficos destruidos. Había ' + chartCount + ' gráficos activos');
     };
 
-    // ✅ IMPLEMENTAR LOS MÉTODOS DE RENDERIZADO DE GRÁFICOS
     GraficosManager.prototype.renderDonutChart = function(venta, compra, alquiler) {
-        console.log('🍩 Renderizando gráfico donut...');
         var ctxDonut = document.getElementById('chart-donut');
         
         if (!ctxDonut) {
-            console.error('❌ No se encontró canvas #chart-donut');
             return;
         }
         
@@ -205,18 +152,14 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                     }
                 }
             });
-            console.log('✅ Gráfico donut renderizado');
         } catch (error) {
-            console.error('❌ Error creando gráfico donut:', error);
         }
     };
 
     GraficosManager.prototype.renderBarChart = function(venta, compra, alquiler) {
-        console.log('📊 Renderizando gráfico de barras...');
         var ctxBarras = document.getElementById('chart-barras');
         
         if (!ctxBarras) {
-            console.error('❌ No se encontró canvas #chart-barras');
             return;
         }
         
@@ -259,18 +202,14 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                     }
                 }
             });
-            console.log('✅ Gráfico de barras renderizado');
         } catch (error) {
-            console.error('❌ Error creando gráfico de barras:', error);
         }
     };
 
     GraficosManager.prototype.renderRadarChart = function(promedios) {
-        console.log('📡 Renderizando gráfico radar...');
         var ctxRadar = document.getElementById('chart-radar');
         
         if (!ctxRadar) {
-            console.error('❌ No se encontró canvas #chart-radar');
             return;
         }
         
@@ -352,18 +291,14 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                     }
                 }
             });
-            console.log('✅ Gráfico radar renderizado');
         } catch (error) {
-            console.error('❌ Error creando gráfico radar:', error);
         }
     };
 
     GraficosManager.prototype.renderHorizontalBarChart = function(promedios) {
-        console.log('↔️ Renderizando gráfico de barras horizontales...');
         var ctxHorizontal = document.getElementById('chart-horizontal');
         
         if (!ctxHorizontal) {
-            console.error('❌ No se encontró canvas #chart-horizontal');
             return;
         }
         
@@ -445,18 +380,14 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                     }
                 }
             });
-            console.log('✅ Gráfico de barras horizontales renderizado');
         } catch (error) {
-            console.error('❌ Error creando gráfico de barras horizontales:', error);
         }
     };
 
     GraficosManager.prototype.renderDistributionChart = function(distribucionCalificaciones) {
-        console.log('📈 Renderizando gráfico de distribución...');
         var ctxDistribution = document.getElementById('chart-distribution');
         
         if (!ctxDistribution) {
-            console.error('❌ No se encontró canvas #chart-distribution');
             return;
         }
         
@@ -517,14 +448,11 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                     }
                 }
             });
-            console.log('✅ Gráfico de distribución renderizado');
         } catch (error) {
-            console.error('❌ Error creando gráfico de distribución:', error);
         }
     };
 
     GraficosManager.prototype.mostrarErrorChartJS = function() {
-        console.error('❌ Chart.js no disponible');
         var container = this.view.$el.find('#dynamic-content-container')[0];
         if (container) {
             var graficosContainer = container.querySelector('.graficos-container');

@@ -370,8 +370,8 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             'estatus' => '2'
         ];
         
-        // CORREGIDO: Solo aplicar filtros si NO es "mostrar todas"
-        if (!$mostrarTodas) {
+        // CORRECCIÓN: Aplicar filtros cuando NO es "mostrar todas" O cuando hay un CLA específico
+        if (!$mostrarTodas || $claId) {
             if ($oficinaId) {
                 // Filtrar por oficina específica
                 $userIds = $this->getUserIdsByTeam($entityManager, $oficinaId);
@@ -382,18 +382,26 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                     return $this->obtenerEstadisticasPorDefecto();
                 }
             } elseif ($claId) {
-                // Filtrar por CLA (incluye todas las oficinas del CLA)
-                $userIds = $this->getUserIdsByCLA($entityManager, $claId);
-                if (!empty($userIds)) {
-                    $whereClause['assignedUserId'] = $userIds;
+                // CORRECCIÓN: Incluir CLA0 en el filtrado
+                // Si es CLA0 (Territorio Nacional), NO aplicar filtro de usuarios
+                if ($claId === 'CLA0') {
+                    // No filtrar por usuarios - mostrar todas las encuestas
+                    // $whereClause permanece sin assignedUserId
                 } else {
-                    // Si no hay usuarios en el CLA, retornar vacío
-                    return $this->obtenerEstadisticasPorDefecto();
+                    // Filtrar por CLA específico (incluye todas las oficinas del CLA)
+                    $userIds = $this->getUserIdsByCLA($entityManager, $claId);
+                    if (!empty($userIds)) {
+                        $whereClause['assignedUserId'] = $userIds;
+                    } else {
+                        // Si no hay usuarios en el CLA, retornar vacío
+                        return $this->obtenerEstadisticasPorDefecto();
+                    }
                 }
             }
         }
-        // Si $mostrarTodas es true, NO se agrega filtro de assignedUserId
+        // Si $mostrarTodas es true y no hay $claId, NO se agrega filtro de assignedUserId
         
+        // El resto del método permanece igual...
         // 1. Total de encuestas
         $totalEncuestas = $entityManager->getRepository('CCustomerSurvey')
             ->where($whereClause)

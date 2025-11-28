@@ -13,24 +13,11 @@ define('reportes-calidad-servicio:views/principal', [
         template: 'reportes-calidad-servicio:principal',
 
         setup: function () {
-    console.log('🔧 Inicializando módulos...');
-    
-    // DEBUG: Verificar TODOS los módulos antes de inicializar
-    console.log('=== VERIFICACIÓN DE MÓDULOS CARGADOS ===');
-    console.log('PermisosManager:', typeof PermisosManager);
-    console.log('EstadisticasManager:', typeof EstadisticasManager);
-    console.log('FiltrosCLAManager:', typeof FiltrosCLAManager);
-    console.log('FiltrosOficinasManager:', typeof FiltrosOficinasManager);
-    console.log('ImportadorCSV:', typeof ImportadorCSV);
-    console.log('GraficosManager:', typeof GraficosManager);
-    console.log('====================================');
     
     // 1. PermisosManager
     if (typeof PermisosManager === 'function') {
         this.permisosManager = new PermisosManager(this);
-        console.log('✅ PermisosManager inicializado');
     } else {
-        console.error('❌ PermisosManager NO es una función - Módulo no cargado');
         this.permisosManager = {
             cargarPermisosUsuario: function() { 
                 return Promise.reject('Módulo no cargado');
@@ -45,13 +32,9 @@ define('reportes-calidad-servicio:views/principal', [
     // 2. EstadisticasManager
     if (typeof EstadisticasManager === 'function') {
         this.estadisticasManager = new EstadisticasManager(this);
-        console.log('✅ EstadisticasManager inicializado');
     } else {
-        console.error('❌ EstadisticasManager NO es una función - Módulo no cargado');
         this.estadisticasManager = {
-            loadStatistics: function() { 
-                console.log('Módulo de estadísticas no disponible');
-            },
+            loadStatistics: function() { },
             showLoadingState: function() {
                 var container = this.view.$el.find('#dynamic-content-container')[0];
                 if (container) {
@@ -65,13 +48,9 @@ define('reportes-calidad-servicio:views/principal', [
     // 3. FiltrosCLAManager
     if (typeof FiltrosCLAManager === 'function') {
         this.filtrosCLAManager = new FiltrosCLAManager(this);
-        console.log('✅ FiltrosCLAManager inicializado');
     } else {
-        console.error('❌ FiltrosCLAManager NO es una función - Módulo no cargado');
         this.filtrosCLAManager = {
-            cargarFiltros: function() {
-                console.log('Módulo de filtros CLA no disponible');
-            },
+            cargarFiltros: function() { },
             setupEventListeners: function() {},
             getFiltros: function() {
                 return { cla: null, oficina: null, mostrarTodas: true };
@@ -82,13 +61,9 @@ define('reportes-calidad-servicio:views/principal', [
     // 4. FiltrosOficinasManager
     if (typeof FiltrosOficinasManager === 'function') {
         this.filtrosOficinasManager = new FiltrosOficinasManager(this);
-        console.log('✅ FiltrosOficinasManager inicializado');
     } else {
-        console.error('❌ FiltrosOficinasManager NO es una función - Módulo no cargado');
         this.filtrosOficinasManager = {
-            loadOficinas: function() {
-                console.log('Módulo de filtros oficinas no disponible');
-            },
+            loadOficinas: function() { },
             setupEventListeners: function() {}
         };
     }
@@ -96,13 +71,9 @@ define('reportes-calidad-servicio:views/principal', [
     // 5. ImportadorCSV
     if (typeof ImportadorCSV === 'function') {
         this.importadorCSV = new ImportadorCSV(this);
-        console.log('✅ ImportadorCSV inicializado');
     } else {
-        console.error('❌ ImportadorCSV NO es una función - Módulo no cargado');
         this.importadorCSV = {
             initMappings: function() {
-                console.log('⚠️ ImportadorCSV no cargado - initMappings temporal');
-                // Mapeos básicos para evitar errores
                 this.camposOrdenBD = [];
                 this.csvToFieldMapping = {};
             },
@@ -115,16 +86,10 @@ define('reportes-calidad-servicio:views/principal', [
     // 6. GraficosManager
     if (typeof GraficosManager === 'function') {
         this.graficosManager = new GraficosManager(this);
-        console.log('✅ GraficosManager inicializado');
     } else {
-        console.error('❌ GraficosManager NO es una función - Módulo no cargado');
         this.graficosManager = {
-            registrarPluginsChart: function() {
-                console.log('Módulo de gráficos no disponible');
-            },
-            renderCharts: function() {
-                console.log('Módulo de gráficos no disponible');
-            },
+            registrarPluginsChart: function() { },
+            renderCharts: function() { },
             destroyCharts: function() {}
         };
     }
@@ -138,27 +103,12 @@ define('reportes-calidad-servicio:views/principal', [
         mostrarTodas: true
     };
     
-    console.log('=== INICIALIZACIÓN DE MÓDULOS COMPLETADA ===');
-    console.log('Módulos cargados correctamente:', {
-        permisos: !!this.permisosManager,
-        estadisticas: !!this.estadisticasManager,
-        filtrosCLA: !!this.filtrosCLAManager,
-        filtrosOficinas: !!this.filtrosOficinasManager,
-        importador: !!this.importadorCSV,
-        graficos: !!this.graficosManager
-    });
-    
-    // Ahora estas llamadas son seguras
     try {
         this.importadorCSV.initMappings();
-        console.log('✅ Mapeos CSV inicializados');
     } catch (error) {
-        console.error('❌ Error en initMappings:', error);
     }
     
     this.cargarChartJS();
-    
-    console.log('✅ Setup completado exitosamente');
 },
 
         cargarChartJS: function() {
@@ -181,27 +131,16 @@ define('reportes-calidad-servicio:views/principal', [
         },
 
         cargarPermisosYFiltros: function() {
-            console.log('🔄 Cargando permisos y filtros...');
-            
             this.permisosManager.cargarPermisosUsuario()
                 .then(function(permisos) {
-                    console.log('✅ Permisos cargados:', permisos);
                     this.filtrosCLAManager.cargarFiltros();
-                    
-                    // ✅ O también puedes cargar estadísticas directamente aquí
-                    // this.estadisticasManager.loadStatistics();
-                    
                 }.bind(this))
                 .catch(function(error) {
-                    console.error('❌ Error cargando permisos:', error);
-                    // Cargar estadísticas incluso si hay error en permisos
-                    console.log('📊 Cargando estadísticas sin permisos...');
                     this.estadisticasManager.loadStatistics();
                 }.bind(this));
         },
 
         afterRender: function () {
-            console.log('3. afterRender ejecutado');
             this.showLoadingState();
             this.setupEventListeners();
         },
@@ -222,7 +161,6 @@ define('reportes-calidad-servicio:views/principal', [
                 });
             }
 
-            // Delegar acciones a los managers correspondientes
             this.$el.find('[data-action="import"]').off('click').on('click', () => {
                 this.importadorCSV.actionImport();
             });
@@ -231,7 +169,6 @@ define('reportes-calidad-servicio:views/principal', [
                 this.estadisticasManager.loadStatistics();
             });
             
-            // Event listeners para filtros
             this.filtrosCLAManager.setupEventListeners();
             this.filtrosOficinasManager.setupEventListeners();
         },
@@ -240,7 +177,6 @@ define('reportes-calidad-servicio:views/principal', [
             this.importadorCSV.initMappings();
         },
 
-        // Métodos de UI que pueden ser usados por todos los managers
         showLoadingState: function() {
             this.estadisticasManager.showLoadingState();
         },
