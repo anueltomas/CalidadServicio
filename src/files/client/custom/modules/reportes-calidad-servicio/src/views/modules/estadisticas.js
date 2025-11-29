@@ -169,11 +169,11 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
         var tituloFiltro = '';
 
         if (filtros.mostrarTodas) {
-            tituloFiltro = '<span class="badge badge-primary">Territorio Nacional - Todas las estadísticas</span>';
+            tituloFiltro = '<span class="badge badge-primary" style="font-size: clamp(0.75rem, 2vw, 0.9rem); padding: 6px 12px;">🌎 Territorio Nacional</span>';
         } else if (filtros.oficina) {
-            tituloFiltro = '<span class="badge badge-success">Oficina: ' + filtros.oficina + '</span>';
+            tituloFiltro = '<span class="badge badge-success" style="font-size: clamp(0.75rem, 2vw, 0.9rem); padding: 6px 12px;">🏪 ' + filtros.oficina + '</span>';
         } else if (filtros.cla) {
-            tituloFiltro = '<span class="badge badge-info">CLA: ' + filtros.cla + ' - Todas sus oficinas</span>';
+            tituloFiltro = '<span class="badge badge-info" style="font-size: clamp(0.75rem, 2vw, 0.9rem); padding: 6px 12px;">🏢 ' + filtros.cla + '</span>';
         }
 
         return `

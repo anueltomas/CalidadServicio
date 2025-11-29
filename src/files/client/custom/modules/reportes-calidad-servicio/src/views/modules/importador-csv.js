@@ -89,29 +89,38 @@ define('reportes-calidad-servicio:views/modules/importador-csv', [], function ()
 
         var tipoConfig = config[tipo] || config.info;
         
-        // Crear mensaje personalizado SIN botón de cerrar
+        // Detectar si es móvil
+        var isMobile = window.innerWidth < 768;
+        var width = isMobile ? 'calc(100% - 20px)' : '400px';
+        var maxWidth = isMobile ? '100%' : '600px';
+        var top = isMobile ? '10px' : '20px';
+        var right = isMobile ? '10px' : '20px';
+        var fontSize = isMobile ? '12px' : '13px';
+        var titleSize = isMobile ? '13px' : '14px';
+        var padding = isMobile ? '15px' : '20px';
+        
         var mensajeHTML = `
             <div class="mensaje-personalizado" style="
                 position: fixed;
-                top: 20px;
-                right: 20px;
+                top: ${top};
+                right: ${right};
                 z-index: 10000;
                 background: white;
                 border-left: 4px solid ${tipoConfig.color};
                 border-radius: 8px;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                min-width: 400px;
-                max-width: 600px;
+                min-width: ${width};
+                max-width: ${maxWidth};
                 animation: slideInRight 0.3s ease-out;
             ">
-                <div style="padding: 20px;">
+                <div style="padding: ${padding};">
                     <div style="display: flex; align-items: flex-start; gap: 12px;">
-                        <i class="${tipoConfig.icon}" style="color: ${tipoConfig.color}; font-size: 20px; margin-top: 2px;"></i>
+                        <i class="${tipoConfig.icon}" style="color: ${tipoConfig.color}; font-size: ${isMobile ? '18px' : '20px'}; margin-top: 2px;"></i>
                         <div style="flex: 1;">
-                            <div style="font-weight: 600; color: #2c3e50; margin-bottom: 5px; font-size: 14px;">
+                            <div style="font-weight: 600; color: #2c3e50; margin-bottom: 5px; font-size: ${titleSize};">
                                 ${tipoConfig.title}
                             </div>
-                            <div style="color: #5d6d7e; font-size: 13px; line-height: 1.4; white-space: pre-line;">
+                            <div style="color: #5d6d7e; font-size: ${fontSize}; line-height: 1.4; white-space: pre-line; word-break: break-word;">
                                 ${mensaje}
                             </div>
                         </div>
@@ -146,15 +155,22 @@ define('reportes-calidad-servicio:views/modules/importador-csv', [], function ()
                         transform: translateX(100%);
                         opacity: 0;
                     }
+                    
+                    @media (max-width: 768px) {
+                        .mensaje-personalizado {
+                            left: 10px !important;
+                            right: 10px !important;
+                            min-width: auto !important;
+                            width: auto !important;
+                        }
+                    }
                 </style>
             `;
             $('head').append(estilos);
         }
 
-        // Agregar mensaje al DOM
         $('body').append(mensajeHTML);
 
-        // Auto-eliminar después del tiempo especificado
         setTimeout(function() {
             $('.mensaje-personalizado').first().addClass('cerrando');
             setTimeout(function() {
@@ -814,19 +830,25 @@ define('reportes-calidad-servicio:views/modules/importador-csv', [], function ()
         var barraHTML = '<div id="import-progress-bar" style="position: fixed; top: 0; left: 0; right: 0; z-index: 9999; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 20px;">' +
             '<div style="display: flex; align-items: center; gap: 15px; max-width: 1200px; margin: 0 auto;">' +
                 '<div style="flex: 1;">' +
-                    '<div style="display: flex; justify-content: space-between; margin-bottom: 8px;">' +
-                        '<span style="font-weight: 600; color: #2c3e50;"><i class="fas fa-upload"></i> Importando encuestas...</span>' +
-                        '<span id="progress-percentage" style="font-weight: 600; color: #B8A279;">0%</span>' +
+                    '<div style="display: flex; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 5px;">' +
+                        '<span style="font-weight: 600; color: #2c3e50; font-size: clamp(0.85rem, 2vw, 1rem);"><i class="fas fa-upload"></i> <span class="progress-text-desktop">Importando encuestas...</span><span class="progress-text-mobile" style="display: none;">Importando...</span></span>' +
+                        '<span id="progress-percentage" style="font-weight: 600; color: #B8A279; font-size: clamp(0.85rem, 2vw, 1rem);">0%</span>' +
                     '</div>' +
                     '<div style="width: 100%; height: 20px; background: #f0f0f0; border-radius: 10px; overflow: hidden; position: relative;">' +
                         '<div id="progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #B8A279 0%, #D4C19C 100%); transition: width 0.3s ease; border-radius: 10px;"></div>' +
                     '</div>' +
-                    '<div id="progress-message" style="margin-top: 8px; font-size: 0.9em; color: #7f8c8d;">Preparando importación...</div>' +
+                    '<div id="progress-message" style="margin-top: 8px; font-size: clamp(0.75rem, 1.5vw, 0.9rem); color: #7f8c8d; word-break: break-word;">Preparando importación...</div>' +
                 '</div>' +
             '</div>' +
         '</div>';
         
         $('body').append(barraHTML);
+        
+        // Responsive: ocultar texto largo en móviles
+        if (window.innerWidth < 768) {
+            $('.progress-text-desktop').hide();
+            $('.progress-text-mobile').show();
+        }
     };
 
     ImportadorCSV.prototype.actualizarProgreso = function(porcentaje, mensaje) {

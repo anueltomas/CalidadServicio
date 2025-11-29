@@ -503,11 +503,8 @@
 /* ===================================
    RESPONSIVE MEJORADO
    =================================== */
-@media (max-width: 1200px) {
-    .graficos-container {
-        grid-template-columns: 1fr;
-    }
-    
+@media (max-width: 1400px) {
+    .graficos-container,
     .graficos-secundarios {
         grid-template-columns: 1fr;
     }
@@ -517,54 +514,351 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .calidad-servicio-principal {
-        padding: 10px;
+        padding: 15px;
     }
     
-    .file-input-section .panel-body {
+    .page-header h3 {
+        font-size: 1.3em;
+    }
+    
+    .filters-container {
         flex-direction: column;
-        align-items: stretch;
     }
     
-    .file-input-group {
-        flex-direction: column;
-        align-items: stretch;
+    .filter-group {
+        min-width: 100%;
     }
     
-    .action-buttons {
-        justify-content: center;
-        width: 100%;
+    .info-encuesta-card {
+        padding: 20px;
     }
     
-    .graficos-container,
-    .graficos-secundarios {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
-    
-    .leyenda-donut {
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
+    .info-title {
+        font-size: 1.1em;
     }
     
     .seccion-operaciones {
         padding: 20px;
     }
+    
+    .titulo-seccion {
+        font-size: 1.5em;
+    }
+    
+    .tabla-operaciones {
+        font-size: 0.9em;
+    }
+    
+    .tabla-operaciones th,
+    .tabla-operaciones td {
+        padding: 12px;
+    }
+    
+    .grafico-card {
+        padding: 20px;
+    }
+    
+    .grafico-titulo {
+        font-size: 1.1em;
+    }
+}
+
+@media (max-width: 768px) {
+    .calidad-servicio-principal {
+        padding: 10px;
+    }
+    
+    .page-header {
+        padding: 15px;
+    }
+    
+    .page-header h3 {
+        font-size: 1.1em;
+    }
+    
+    .file-input-section .panel-body {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 15px;
+    }
+    
+    .file-input-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .file-input-custom {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .file-input-name {
+        font-size: 0.85em;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+        width: 100%;
+        gap: 10px;
+    }
+    
+    .action-buttons .btn {
+        width: 100%;
+    }
+    
+    .info-encuesta-card {
+        padding: 15px;
+    }
+    
+    .info-title {
+        font-size: 1em;
+        margin-bottom: 15px;
+    }
+    
+    .info-table td {
+        padding: 10px;
+        font-size: 0.9em;
+    }
+    
+    .seccion-operaciones {
+        padding: 15px;
+    }
+    
+    .titulo-seccion {
+        font-size: 1.3em;
+        margin-bottom: 20px;
+    }
+    
+    /* Tabla responsive con scroll horizontal */
+    .tabla-operaciones-card {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .tabla-operaciones {
+        min-width: 500px;
+        font-size: 0.85em;
+    }
+    
+    .tabla-operaciones th,
+    .tabla-operaciones td {
+        padding: 10px 8px;
+    }
+    
+    .graficos-container,
+    .graficos-secundarios {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        margin: 20px 0;
+    }
+    
+    .graficos-secundarios .grafico-card.grande {
+        grid-column: span 1;
+    }
+    
+    .grafico-card {
+        padding: 15px;
+    }
+    
+    .grafico-titulo {
+        font-size: 1em;
+        padding-bottom: 10px;
+    }
+    
+    .grafico-wrapper {
+        min-height: 250px;
+        padding: 10px;
+    }
+    
+    .leyenda-donut {
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .leyenda-item {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Ajustar mensajes de loading/empty */
+    .loading-alert,
+    .empty-alert {
+        padding: 40px 20px;
+        margin: 20px 0;
+    }
+    
+    .spinner-large {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .empty-icon {
+        font-size: 3em;
+    }
+}
+
+@media (max-width: 480px) {
+    .calidad-servicio-principal {
+        padding: 8px;
+    }
+    
+    .page-header {
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+    
+    .page-header h3 {
+        font-size: 1em;
+    }
+    
+    .filter-section,
+    .file-input-section {
+        margin-bottom: 10px;
+    }
+    
+    .filter-group label {
+        font-size: 0.9em;
+    }
+    
+    .filter-group .form-control {
+        padding: 8px 12px;
+        font-size: 0.9em;
+    }
+    
+    .file-input-custom {
+        padding: 8px 15px;
+        font-size: 0.9em;
+    }
+    
+    .btn {
+        padding: 8px 15px;
+        font-size: 0.9em;
+    }
+    
+    .info-encuesta-card {
+        padding: 12px;
+    }
+    
+    .info-title {
+        font-size: 0.95em;
+    }
+    
+    .info-table td {
+        padding: 8px;
+        font-size: 0.85em;
+    }
+    
+    .seccion-operaciones {
+        padding: 12px;
+    }
+    
+    .titulo-seccion {
+        font-size: 1.1em;
+        margin-bottom: 15px;
+    }
+    
+    .tabla-operaciones {
+        font-size: 0.8em;
+    }
+    
+    .tabla-operaciones th,
+    .tabla-operaciones td {
+        padding: 8px 6px;
+    }
+    
+    .grafico-card {
+        padding: 12px;
+    }
+    
+    .grafico-titulo {
+        font-size: 0.95em;
+    }
+    
+    .grafico-wrapper {
+        min-height: 200px;
+        padding: 8px;
+    }
+    
+    .leyenda-texto {
+        font-size: 0.85em;
+    }
+    
+    .loading-alert,
+    .empty-alert {
+        padding: 30px 15px;
+    }
+    
+    .loading-alert h4,
+    .empty-alert h3 {
+        font-size: 1.1em;
+    }
+    
+    .loading-alert p,
+    .empty-alert p {
+        font-size: 0.9em;
+    }
 }
 
 /* ===================================
-   CHART.JS OVERRIDES MEJORADOS
+   MEJORAS PARA TABLETS
    =================================== */
-#chart-donut,
-#chart-barras,
-#chart-radar,
-#chart-horizontal,
-#chart-distribution {
-    max-width: 100% !important;
-    height: auto !important;
+@media (min-width: 769px) and (max-width: 1024px) {
+    .graficos-container,
+    .graficos-secundarios {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .graficos-secundarios .grafico-card.grande {
+        grid-column: span 2;
+    }
+    
+    .tabla-operaciones th,
+    .tabla-operaciones td {
+        font-size: 0.9em;
+    }
 }
+
+/* ===================================
+   CHART.JS RESPONSIVE
+   =================================== */
+@media (max-width: 768px) {
+    #chart-donut,
+    #chart-barras,
+    #chart-radar,
+    #chart-horizontal,
+    #chart-distribution,
+    #chart-recomendacion,
+    #chart-medios-contacto,
+    #chart-oficinas {
+        max-width: 100% !important;
+        max-height: 250px !important;
+    }
+}
+
+/* ===================================
+   ORIENTACIÓN LANDSCAPE EN MÓVILES
+   =================================== */
+@media (max-width: 768px) and (orientation: landscape) {
+    .grafico-wrapper {
+        min-height: 200px;
+    }
+    
+    #chart-donut,
+    #chart-barras,
+    #chart-radar,
+    #chart-horizontal,
+    #chart-distribution,
+    #chart-recomendacion,
+    #chart-medios-contacto,
+    #chart-oficinas {
+        max-height: 200px !important;
+    }
+}
+
 
 /* Mejoras visuales para los gráficos */
 .chartjs-render-monitor {
