@@ -117,7 +117,7 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                     labels: ['Sí', 'No'],
                     datasets: [{
                         data: [si, no],
-                        backgroundColor: ['#B8A279', '#666666'],
+                        backgroundColor: ['#32442aff', '#666666'],
                         borderWidth: 3,
                         borderColor: '#fff'
                     }]
@@ -125,7 +125,7 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    cutout: '70%',
+                    cutout: '50%',
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -392,10 +392,38 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    cutout: '65%',
+                    cutout: '50%',
                     plugins: {
                         legend: {
-                            display: false
+                            display: true,
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                font: {
+                                    size: 12,
+                                    weight: '600',
+                                    family: "'Arial', sans-serif"
+                                },
+                                color: '#2c3e50',
+                                generateLabels: function(chart) {
+                                    var data = chart.data;
+                                    if (data.labels.length && data.datasets.length) {
+                                        return data.labels.map(function(label, i) {
+                                            var value = data.datasets[0].data[i];
+                                            var percentage = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
+                                            return {
+                                                text: label + ': ' + value + ' (' + percentage + '%)',
+                                                fillStyle: data.datasets[0].backgroundColor[i],
+                                                hidden: false,
+                                                index: i
+                                            };
+                                        });
+                                    }
+                                    return [];
+                                }
+                            }
                         },
                         tooltip: {
                             callbacks: {
@@ -411,6 +439,7 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                 }
             });
         } catch (error) {
+            console.error('Error renderizando gráfico donut:', error);
         }
     };
 

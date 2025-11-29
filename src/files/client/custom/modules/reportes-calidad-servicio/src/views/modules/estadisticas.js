@@ -247,20 +247,6 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
                             <div class="grafico-wrapper">
                                 <canvas id="chart-donut"></canvas>
                             </div>
-                            <div class="leyenda-donut">
-                                <div class="leyenda-item">
-                                    <span class="leyenda-color" style="background: #2196F3;"></span>
-                                    <span class="leyenda-texto">Venta (${ventaPct}%)</span>
-                                </div>
-                                <div class="leyenda-item">
-                                    <span class="leyenda-color" style="background: #4CAF50;"></span>
-                                    <span class="leyenda-texto">Compra (${compraPct}%)</span>
-                                </div>
-                                <div class="leyenda-item">
-                                    <span class="leyenda-color" style="background: #F44336;"></span>
-                                    <span class="leyenda-texto">Alquiler (${alquilerPct}%)</span>
-                                </div>
-                            </div>
                         </div>
 
                         <div class="grafico-card">

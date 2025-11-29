@@ -28,7 +28,7 @@
     </div>
 
     
-
+    {{#if esAdmin}}
     <div class="file-input-section panel panel-default">
         <div class="panel-body">
             <div class="file-input-group">
@@ -43,17 +43,34 @@
             </div>
             
             <div class="action-buttons">
-                <button class="btn btn-primary" data-action="import">
+                <button class="btn btn-primary" data-action="import" style="
+                    background-color: #B8A279; 
+                    border-color: #9D8B5F; 
+                    color: #1A1A1A;
+                    font-weight: 600;
+                    padding: 10px 20px;
+                    border-width: 2px;
+                    transition: all 0.3s ease;
+                ">
                     <span class="fas fa-upload"></span>
                     Importar Datos
                 </button>
-                <button class="btn btn-default" data-action="refresh">
+                <button class="btn btn-default" data-action="refresh" style="
+                    background-color: #E6E6E6; 
+                    border-color: #666666; 
+                    color: #1A1A1A;
+                    font-weight: 600;
+                    padding: 10px 20px;
+                    border-width: 2px;
+                    transition: all 0.3s ease;
+                ">
                     <span class="fas fa-sync-alt"></span>
                     Actualizar Estadísticas
                 </button>
             </div>
         </div>
     </div>
+    {{/if}}
 
     <div id="dynamic-content-container">
         <!-- Contenido dinámico -->
@@ -61,6 +78,37 @@
 </div>
 
 <style>
+
+/*==================================
+BOTON DE IMPORT Y REFRESCAR
+==================================*/
+    button[data-action="import"]:hover {
+        background-color: #36342eff !important;
+        border-color: #8A7A54 !important;
+        color: #FFFFFF !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(154, 140, 95, 0.3);
+    }
+
+    button[data-action="import"]:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(154, 140, 95, 0.3);
+    }
+
+
+    button[data-action="refresh"]:hover {
+        background-color: #D4D4D4 !important;
+        border-color: #5A5A5A !important;
+        color: #1A1A1A !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(102, 102, 102, 0.2);
+    }
+    
+    button[data-action="refresh"]:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(102, 102, 102, 0.2);
+    }
+
 /* ===================================
    SECCIÓN DE FILTROS
    =================================== */
@@ -181,7 +229,7 @@
 .file-input-custom {
     display: inline-block;
     padding: 10px 20px;
-    background: #3498db;
+    background: #4c4d4eff;
     color: white;
     border-radius: 6px;
     cursor: pointer;
@@ -190,7 +238,7 @@
 }
 
 .file-input-custom:hover {
-    background: #2980b9;
+    background: #b39e78ff;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
 }
