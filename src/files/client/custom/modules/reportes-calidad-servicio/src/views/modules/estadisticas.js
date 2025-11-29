@@ -15,6 +15,9 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
             asesoresDestacados: [],
             promediosCategorias: {},
             distribucionCalificaciones: {},
+            recomendacion: { si: 0, no: 0 },  // ✅ AGREGADO
+            mediosContacto: {},  // ✅ AGREGADO
+            estadisticasOficinas: [],  // ✅ AGREGADO
             efectividadComunicacion: 0,
             asesoriaLegal: 0,
             presentacionPersonal: 0,
@@ -291,6 +294,38 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
                             </div>
                         </div>
                     </div>
+                    
+
+                    <!-- Gráficos de Recomendación y Contacto -->
+                    <div class="graficos-secundarios" style="margin-top: 40px;">
+                        <div class="grafico-card">
+                            <h3 class="grafico-titulo">¿Recomendaría nuestro servicio?</h3>
+                            <div class="grafico-wrapper">
+                                <canvas id="chart-recomendacion"></canvas>
+                            </div>
+                            <div class="percentage-display">
+                                ${stats.porcentajeRecomendacion}% recomienda nuestro servicio
+                            </div>
+                        </div>
+
+                        <div class="grafico-card">
+                            <h3 class="grafico-titulo">Medios de Contacto</h3>
+                            <div class="grafico-wrapper">
+                                <canvas id="chart-medios-contacto"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${stats.estadisticasOficinas && stats.estadisticasOficinas.length > 0 ? `
+                    <div class="graficos-secundarios" style="margin-top: 40px;">
+                        <div class="grafico-card grande">
+                            <h3 class="grafico-titulo">Comparación de Oficinas - ${filtros.cla}</h3>
+                            <div class="grafico-wrapper">
+                                <canvas id="chart-oficinas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -313,6 +348,35 @@ define('reportes-calidad-servicio:views/modules/estadisticas', [], function () {
                 <p class="text-muted">No se encontraron encuestas con los filtros seleccionados.</p>
             </div>
         `;
+    };
+
+    EstadisticasManager.prototype.procesarEstadisticasReales = function(datosBackend) {
+        var promediosBackend = datosBackend.promediosCategorias || {};
+        
+        return {
+            totalEncuestas: datosBackend.totalEncuestas || 0,
+            satisfaccionPromedio: datosBackend.satisfaccionPromedio || 0,
+            porcentajeRecomendacion: datosBackend.porcentajeRecomendacion || 0,
+            tiposOperacion: datosBackend.tiposOperacion || 0,
+            distribucionOperaciones: datosBackend.distribucionOperaciones || {},
+            asesoresDestacados: datosBackend.asesoresDestacados || [],
+            promediosCategorias: promediosBackend,
+            distribucionCalificaciones: datosBackend.distribucionCalificaciones || {},
+            recomendacion: datosBackend.recomendacion || { si: 0, no: 0 },
+            mediosContacto: datosBackend.mediosContacto || {},
+            estadisticasOficinas: datosBackend.estadisticasOficinas || [],
+            efectividadComunicacion: promediosBackend.communicationEffectiveness || 0,
+            asesoriaLegal: promediosBackend.legalAdvice || 0,
+            presentacionPersonal: promediosBackend.personalPresentation || 0,
+            manejoDetalles: promediosBackend.detailManagement || 0,
+            puntualidad: promediosBackend.punctuality || 0,
+            compromiso: promediosBackend.commitmentLevel || 0,
+            solucionProblemas: promediosBackend.problemSolving || 0,
+            acompanamiento: promediosBackend.fullSupport || 0,
+            situacionesImprevistas: promediosBackend.unexpectedSituations || 0,
+            tiemposNegociacion: promediosBackend.negotiationTiming || 0,
+            calificacionOficina: promediosBackend.officeRating || 0
+        };
     };
 
     return EstadisticasManager;

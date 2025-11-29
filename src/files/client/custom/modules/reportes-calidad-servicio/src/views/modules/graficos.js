@@ -52,21 +52,13 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
     };
 
     GraficosManager.prototype.renderCharts = function() {
-        if (!this.view) {
-            return;
-        }
-        
-        if (!this.view.estadisticasManager) {
+        if (!this.view || !this.view.estadisticasManager) {
             return;
         }
         
         var stats = this.view.estadisticasManager.stats;
         
-        if (!stats) {
-            return;
-        }
-        
-        if (stats.totalEncuestas === 0) {
+        if (!stats || stats.totalEncuestas === 0) {
             return;
         }
         
@@ -92,8 +84,274 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
             this.renderHorizontalBarChart(promedios);
             this.renderDistributionChart(distribucionCalificaciones);
             
+            // ✅ NUEVOS GRÁFICOS
+            this.renderRecomendacionChart(stats.recomendacion);
+            this.renderMediosContactoChart(stats.mediosContacto);
+            
+            if (stats.estadisticasOficinas && stats.estadisticasOficinas.length > 0) {
+                this.renderOficinasChart(stats.estadisticasOficinas);
+            }
+            
         } catch (error) {
             this.mostrarErrorChartJS();
+        }
+    };
+
+    GraficosManager.prototype.renderRecomendacionChart = function(recomendacion) {
+        var ctx = document.getElementById('chart-recomendacion');
+        
+        if (!ctx) {
+            return;
+        }
+        
+        try {
+            var si = recomendacion.si || 0;
+            var no = recomendacion.no || 0;
+            var total = si + no;
+            var porcentajeSi = total > 0 ? Math.round((si / total) * 100) : 0;
+            var porcentajeNo = total > 0 ? Math.round((no / total) * 100) : 0;
+            
+            this.charts.recomendacion = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Sí', 'No'],
+                    datasets: [{
+                        data: [si, no],
+                        backgroundColor: ['#B8A279', '#666666'],
+                        borderWidth: 3,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 13,
+                                    weight: '600'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    var label = context.label || '';
+                                    var value = context.parsed || 0;
+                                    var percentage = context.dataIndex === 0 ? porcentajeSi : porcentajeNo;
+                                    return label + ': ' + value + ' (' + percentage + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+        }
+    };
+
+    GraficosManager.prototype.renderMediosContactoChart = function(mediosContacto) {
+        var ctx = document.getElementById('chart-medios-contacto');
+        
+        if (!ctx) {
+            return;
+        }
+        
+        try {
+            var labels = [];
+            var data = [];
+            var colores = [
+                '#B8A279', '#9D8B5F', '#1A1A1A', '#666666', '#E6E6E6',
+                '#B8A279', '#9D8B5F', '#1A1A1A', '#666666', '#E6E6E6'
+            ];
+            
+            Object.keys(mediosContacto).forEach(function(medio) {
+                var valor = mediosContacto[medio];
+                if (valor > 0) {
+                    labels.push(medio);
+                    data.push(valor);
+                }
+            });
+            
+            this.charts.mediosContacto = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Cantidad',
+                        data: data,
+                        backgroundColor: colores.slice(0, labels.length),
+                        borderWidth: 0,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#E6E6E6'
+                            },
+                            ticks: {
+                                stepSize: 1
+                            }
+                        },
+                        y: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Contactos: ' + context.parsed.x;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+        }
+    };
+
+    GraficosManager.prototype.renderOficinasChart = function(estadisticasOficinas) {
+        var ctx = document.getElementById('chart-oficinas');
+        
+        if (!ctx) {
+            return;
+        }
+        
+        try {
+            var labels = [];
+            var dataEncuestas = [];
+            var dataSatisfaccion = [];
+            
+            estadisticasOficinas.forEach(function(oficina) {
+                labels.push(oficina.nombre);
+                dataEncuestas.push(oficina.totalEncuestas);
+                dataSatisfaccion.push(oficina.satisfaccionPromedio);
+            });
+            
+            this.charts.oficinas = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Total Encuestas',
+                            data: dataEncuestas,
+                            backgroundColor: '#B8A279',
+                            borderWidth: 0,
+                            borderRadius: 6,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Satisfacción Promedio',
+                            data: dataSatisfaccion,
+                            backgroundColor: '#1A1A1A',
+                            borderWidth: 0,
+                            borderRadius: 6,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Total Encuestas',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: '#E6E6E6'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            max: 5,
+                            title: {
+                                display: true,
+                                text: 'Satisfacción (1-5)',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10
+                                },
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 15,
+                                font: {
+                                    size: 12,
+                                    weight: '600'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    var label = context.dataset.label || '';
+                                    var value = context.parsed.y;
+                                    if (context.datasetIndex === 1) {
+                                        return label + ': ' + value.toFixed(1) + '/5';
+                                    }
+                                    return label + ': ' + value;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (error) {
         }
     };
 
@@ -126,7 +384,7 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                     labels: ['Venta', 'Compra', 'Alquiler'],
                     datasets: [{
                         data: data,
-                        backgroundColor: ['#2196F3', '#4CAF50', '#F44336'],
+                        backgroundColor: ['#B8A279', '#9D8B5F', '#666666'],
                         borderWidth: 2,
                         borderColor: '#fff'
                     }]
@@ -171,7 +429,7 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                     datasets: [{
                         label: 'Cantidad',
                         data: [venta, compra, alquiler],
-                        backgroundColor: ['#2196F3', '#4CAF50', '#F44336'],
+                        backgroundColor: ['#B8A279', '#9D8B5F', '#666666'],
                         borderWidth: 0,
                         borderRadius: 4
                     }]
@@ -335,9 +593,9 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                             promedios.officeRating || 0
                         ],
                         backgroundColor: [
-                            '#2196F3', '#4CAF50', '#F44336', '#FF9800', '#9C27B0',
-                            '#00BCD4', '#8BC34A', '#FF5722', '#607D8B', '#795548',
-                            '#B8A279'
+                            '#B8A279', '#9D8B5F', '#1A1A1A', '#666666', '#B8A279',
+                            '#9D8B5F', '#1A1A1A', '#666666', '#B8A279', '#9D8B5F',
+                            '#1A1A1A'
                         ],
                         borderWidth: 0,
                         borderRadius: 4
@@ -392,9 +650,11 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
         }
         
         try {
-            var total = Object.values(distribucionCalificaciones).reduce(function(sum, val) {
-                return sum + val;
-            }, 0);
+            // ✅ CORRECCIÓN: Usar strings "1", "2", "3", "4", "5"
+            var total = 0;
+            ['1', '2', '3', '4', '5'].forEach(function(key) {
+                total += (distribucionCalificaciones[key] || 0);
+            });
             
             var data = [
                 distribucionCalificaciones['5'] || 0,
@@ -411,11 +671,11 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                     datasets: [{
                         data: data,
                         backgroundColor: [
-                            '#4CAF50',
-                            '#8BC34A', 
-                            '#FFC107',
-                            '#FF9800',
-                            '#F44336'
+                            '#B8A279',  // 5 - Excelente
+                            '#9D8B5F',  // 4 - Muy Bueno
+                            '#666666',  // 3 - Bueno
+                            '#1A1A1A',  // 2 - Regular
+                            '#E6E6E6'   // 1 - Deficiente
                         ],
                         borderWidth: 2,
                         borderColor: '#fff'
@@ -449,6 +709,7 @@ define('reportes-calidad-servicio:views/modules/graficos', [], function () {
                 }
             });
         } catch (error) {
+            //console.error('Error renderizando gráfico de distribución:', error);
         }
     };
 
