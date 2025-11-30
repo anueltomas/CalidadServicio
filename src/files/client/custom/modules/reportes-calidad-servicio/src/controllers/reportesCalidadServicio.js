@@ -2,7 +2,6 @@ define("reportes-calidad-servicio:controllers/reportesCalidadServicio", [
     "controllers/base",
 ], function (Base) {
     return Base.extend({
-
         defaultAction: "index",
 
         actionIndex: function () {
@@ -30,8 +29,6 @@ define("reportes-calidad-servicio:controllers/reportesCalidadServicio", [
                 },
                 asesoresDestacados: [],
             };
-        }
-
-        
+        },
     });
 });

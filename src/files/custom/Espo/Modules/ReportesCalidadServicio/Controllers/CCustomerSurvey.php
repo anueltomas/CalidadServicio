@@ -602,7 +602,8 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             'fullSupport',
             'unexpectedSituations',
             'negotiationTiming',
-            'officeRating'
+            'officeRating',
+            'businessKnowledge'
         ];
 
         $promedios = [];
@@ -778,69 +779,67 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     }
 
     protected function obtenerEstadisticasContactoRecomendacion($entityManager, $whereClause)
-    {
-        $stats = [
-            'recomendacion' => [
-                'si' => 0,
-                'no' => 0
-            ],
-            'mediosContacto' => []
-        ];
+{
+    $stats = [
+        'recomendacion' => [
+            'si' => 0,
+            'no' => 0
+        ],
+        'mediosContacto' => []
+    ];
+    
+    // Recomendación
+    $stats['recomendacion']['si'] = $entityManager->getRepository('CCustomerSurvey')
+        ->where(array_merge($whereClause, ['recommendation' => '1']))
+        ->count();
         
-        // ✅ CORRECCIÓN: Recomendación con strings "1" y "0"
-        $stats['recomendacion']['si'] = $entityManager->getRepository('CCustomerSurvey')
-            ->where(array_merge($whereClause, ['recommendation' => '1']))
-            ->count();
-            
-        $stats['recomendacion']['no'] = $entityManager->getRepository('CCustomerSurvey')
-            ->where(array_merge($whereClause, ['recommendation' => '0']))
-            ->count();
+    $stats['recomendacion']['no'] = $entityManager->getRepository('CCustomerSurvey')
+        ->where(array_merge($whereClause, ['recommendation' => '0']))
+        ->count();
+    
+    // ✅ ACTUALIZADO: Mapeo de medios de contacto según el formulario
+    $encuestas = $entityManager->getRepository('CCustomerSurvey')
+        ->where(array_merge($whereClause, ['contactMedium!=' => null]))
+        ->find();
+    
+    $mediosMap = [
+        '0' => 'Familiar/Amigo',
+        '1' => 'Mercado Libre',
+        '2' => 'Página Web',
+        '3' => 'Facebook',
+        '4' => 'Estados WhatsApp',
+        '5' => 'Valla/Rótulo',
+        '6' => 'Instagram',
+        '7' => 'Visita en oficina',
+        '8' => 'Contacto Directo',
+        '9' => 'Otro'
+    ];
+    
+    // Inicializar todos los medios en 0
+    foreach ($mediosMap as $nombre) {
+        $stats['mediosContacto'][$nombre] = 0;
+    }
+    
+    // Contar cada medio
+    foreach ($encuestas as $encuesta) {
+        $contactMedium = $encuesta->get('contactMedium');
         
-        // ✅ CORRECCIÓN: Medios de contacto
-        $encuestas = $entityManager->getRepository('CCustomerSurvey')
-            ->where(array_merge($whereClause, ['contactMedium!=' => null]))
-            ->find();
-        
-        $mediosMap = [
-            '0' => 'Contacto Directo',
-            '1' => 'Familiar/Amigo',
-            '2' => 'Página Web',
-            '3' => 'Mercado Libre',
-            '4' => 'Instagram',
-            '5' => 'Facebook',
-            '6' => 'WhatsApp',
-            '7' => 'Estados WhatsApp',
-            '8' => 'Valla/Rótulo',
-            '9' => 'Visita en oficina'
-        ];
-        
-        // Inicializar todos los medios en 0
-        foreach ($mediosMap as $nombre) {
-            $stats['mediosContacto'][$nombre] = 0;
+        if (is_string($contactMedium)) {
+            $contactMedium = json_decode($contactMedium, true);
         }
         
-        // Contar cada medio
-        foreach ($encuestas as $encuesta) {
-            $contactMedium = $encuesta->get('contactMedium');
-            
-            // ✅ CORRECCIÓN: Manejar tanto arrays como strings JSON
-            if (is_string($contactMedium)) {
-                $contactMedium = json_decode($contactMedium, true);
-            }
-            
-            if (is_array($contactMedium)) {
-                foreach ($contactMedium as $medio) {
-                    // Asegurar que sea string
-                    $medioStr = (string)$medio;
-                    if (isset($mediosMap[$medioStr])) {
-                        $stats['mediosContacto'][$mediosMap[$medioStr]]++;
-                    }
+        if (is_array($contactMedium)) {
+            foreach ($contactMedium as $medio) {
+                $medioStr = (string)$medio;
+                if (isset($mediosMap[$medioStr])) {
+                    $stats['mediosContacto'][$mediosMap[$medioStr]]++;
                 }
             }
         }
-        
-        return $stats;
     }
+    
+    return $stats;
+}
 
     public function postActionVerificarDuplicados($params, $data, $request)
 {
