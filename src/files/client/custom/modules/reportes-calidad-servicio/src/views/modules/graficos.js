@@ -10,7 +10,11 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
         var barLabelsPlugin = {
             id: "barLabels",
             afterDatasetsDraw: function (chart) {
-                if (chart.config.type === "bar") {
+                // ✅ VERIFICAR: Solo mostrar números si está habilitado explícitamente
+                var showLabels =
+                    chart.options.plugins && chart.options.plugins.barLabels;
+
+                if (chart.config.type === "bar" && showLabels !== false) {
                     var ctx = chart.ctx;
 
                     chart.data.datasets.forEach(function (
@@ -133,7 +137,10 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     datasets: [
                         {
                             data: [si, no],
-                            backgroundColor: ["#D2691E", "#F5DEB3"],
+                            backgroundColor: [
+                                "#9D8B64", // Dark gold
+                                "#999999", // Medium grey
+                            ],
                             borderWidth: 2,
                             borderColor: "#fff",
                         },
@@ -209,12 +216,10 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
             var data = [];
             var total = 0;
 
-            // Calcular total
             Object.keys(mediosContacto).forEach(function (medio) {
                 total += mediosContacto[medio];
             });
 
-            // Preparar datos con porcentajes
             Object.keys(mediosContacto).forEach(function (medio) {
                 var valor = mediosContacto[medio];
                 if (valor > 0) {
@@ -225,17 +230,18 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                 }
             });
 
+            // Paleta de colores usando los 4 colores principales
             var colores = [
-                "#D2691E",
-                "#CD853F",
-                "#DEB887",
-                "#F4A460",
-                "#E9C2A6",
-                "#8B4513",
-                "#A0522D",
-                "#BC8F8F",
-                "#D2B48C",
-                "#F5DEB3",
+                "#9D8B64", // Dark gold
+                "#A89968", // Relentless gold
+                "#999999", // Medium grey
+                "#666666", // Obsessed grey
+                "#B5A57A", // Variación gold
+                "#8A8A8A", // Variación grey
+                "#7D7D7D", // Variación grey oscura
+                "#C4B896", // Variación gold clara
+                "#B0B0B0", // Variación grey clara
+                "#888888", // Variación grey media
             ];
 
             this.charts.mediosContacto = new Chart(ctx, {
@@ -258,7 +264,7 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     maintainAspectRatio: false,
                     layout: {
                         padding: {
-                            right: 50, // ✅ AGREGAR PADDING A LA DERECHA
+                            right: 10,
                         },
                     },
                     scales: {
@@ -296,6 +302,7 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                                 },
                             },
                         },
+                        barLabels: false,
                     },
                 },
             });
@@ -306,7 +313,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
             );
         }
     };
-
     GraficosManager.prototype.renderOficinasChart = function (
         estadisticasOficinas
     ) {
@@ -468,7 +474,11 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     datasets: [
                         {
                             data: data,
-                            backgroundColor: ["#D2691E", "#F4A460", "#CD853F"],
+                            backgroundColor: [
+                                "#9D8B64", // Dark gold (36,36,56,6)
+                                "#666666", // Obsessed grey (0,0,0,90)
+                                "#999999", // Medium grey (0,0,0,60)
+                            ],
                             borderWidth: 2,
                             borderColor: "#fff",
                         },
@@ -929,7 +939,7 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
         }
 
         try {
-            var total = Object.keys(promedios).length > 0 ? 5 : 1; // Escala de 1-5
+            var total = Object.keys(promedios).length > 0 ? 5 : 1;
 
             var labels = [
                 "Manejo de los tiempos de la negociación",
@@ -959,7 +969,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                 promedios.communicationEffectiveness || 0,
             ];
 
-            // Calcular porcentajes
             var porcentajes = dataValues.map(function (val) {
                 return total > 0 ? Math.round((val / total) * 100) : 0;
             });
@@ -972,7 +981,7 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                         {
                             label: "Porcentaje",
                             data: porcentajes,
-                            backgroundColor: "#D2691E",
+                            backgroundColor: "#A89968", // Relentless gold (22,22,46,7)
                             borderWidth: 0,
                             borderRadius: 4,
                         },
@@ -982,6 +991,11 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     indexAxis: "y",
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            right: 10,
+                        },
+                    },
                     scales: {
                         x: {
                             beginAtZero: true,
@@ -1017,6 +1031,7 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                                 },
                             },
                         },
+                        barLabels: false,
                     },
                 },
             });
@@ -1048,7 +1063,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                 distribucionCalificaciones["1"] || 0,
             ];
 
-            // Calcular porcentaje de satisfacción (solo Excelente y Muy Bueno)
             var satisfaccion =
                 total > 0 ? Math.round(((data[0] + data[1]) / total) * 100) : 0;
 
@@ -1066,7 +1080,7 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                         {
                             label: "Cantidad",
                             data: data,
-                            backgroundColor: "#D2691E",
+                            backgroundColor: "#A89968", // Relentless gold
                             borderWidth: 0,
                             borderRadius: 4,
                         },
@@ -1160,11 +1174,11 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                         {
                             data: data,
                             backgroundColor: [
-                                "#8B4513",
-                                "#A0522D",
-                                "#CD853F",
-                                "#DEB887",
-                                "#F5DEB3",
+                                "#9D8B64", // Dark gold
+                                "#A89968", // Relentless gold
+                                "#999999", // Medium grey
+                                "#666666", // Obsessed grey
+                                "#CCCCCC", // Light grey
                             ],
                             borderWidth: 2,
                             borderColor: "#fff",
@@ -1253,10 +1267,8 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
         }
 
         try {
-            // Simular distribución basada en el promedio de officeRating
             var officeRating = promedios.officeRating || 0;
 
-            // Crear distribución artificial para mostrar
             var total = 100;
             var excelente = Math.round(officeRating * 20);
             var muyBueno = Math.round((5 - officeRating) * 10);
@@ -1280,11 +1292,11 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                         {
                             data: data,
                             backgroundColor: [
-                                "#8B4513",
-                                "#A0522D",
-                                "#CD853F",
-                                "#DEB887",
-                                "#F5DEB3",
+                                "#9D8B64", // Dark gold
+                                "#A89968", // Relentless gold
+                                "#999999", // Medium grey
+                                "#666666", // Obsessed grey
+                                "#CCCCCC", // Light grey
                             ],
                             borderWidth: 2,
                             borderColor: "#fff",

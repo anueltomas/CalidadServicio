@@ -299,103 +299,100 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     }
     
     protected function guardarEncuesta($datosEncuesta, $entityManager)
-    {
-        try {
-            $encuesta = $entityManager->getEntity('CCustomerSurvey');
-            
-            if (!$encuesta) {
-                return false;
-            }
-            
-            $datosProcesados = [];
-            
-            // Campos básicos
-            if (isset($datosEncuesta['createdAt']) && !empty($datosEncuesta['createdAt'])) {
-                $datosProcesados['createdAt'] = $datosEncuesta['createdAt'];
-            }
-            
-            if (isset($datosEncuesta['emailAddress']) && !empty($datosEncuesta['emailAddress'])) {
-                $datosProcesados['emailAddress'] = trim($datosEncuesta['emailAddress']);
-            }
-            
-            if (isset($datosEncuesta['operationType']) && !empty($datosEncuesta['operationType'])) {
-                $datosProcesados['operationType'] = trim($datosEncuesta['operationType']);
-            }
-            
-            if (isset($datosEncuesta['assignedUserId']) && !empty($datosEncuesta['assignedUserId'])) {
-                $datosProcesados['assignedUserId'] = trim($datosEncuesta['assignedUserId']);
-            }
-            
-            // ✅ CORRECCIÓN: Campos de calificación (convertir de 0-4 a 1-5 y guardar como string)
-            $camposCalificacion = [
-                'communicationEffectiveness',
-                'legalAdvice',
-                'personalPresentation',
-                'detailManagement',
-                'punctuality',
-                'commitmentLevel',
-                'problemSolving',
-                'fullSupport',
-                'unexpectedSituations',
-                'negotiationTiming',
-                'officeRating'
-            ];
-            
-            foreach ($camposCalificacion as $campo) {
-                if (isset($datosEncuesta[$campo]) && $datosEncuesta[$campo] !== '' && $datosEncuesta[$campo] !== null) {
-                    $valor = (int)$datosEncuesta[$campo];
-                    // Convertir de escala 0-4 a 1-5
-                    if ($valor >= 0 && $valor <= 4) {
-                        $valorConvertido = $valor + 1; // 0->1, 1->2, 2->3, 3->4, 4->5
-                        $datosProcesados[$campo] = (string)$valorConvertido; // ✅ Guardar como string
-                    }
-                }
-            }
-            
-            // ✅ CORRECCIÓN: General advisor rating (ya viene en escala 1-5, guardar como string)
-            if (isset($datosEncuesta['generalAdvisorRating']) && $datosEncuesta['generalAdvisorRating'] !== '' && $datosEncuesta['generalAdvisorRating'] !== null) {
-                $valor = (int)$datosEncuesta['generalAdvisorRating'];
-                if ($valor >= 1 && $valor <= 5) {
-                    $datosProcesados['generalAdvisorRating'] = (string)$valor; // ✅ Guardar como string
-                }
-            }
-            
-            // ✅ CORRECCIÓN: Recommendation (guardar como string "0" o "1")
-            if (isset($datosEncuesta['recommendation'])) {
-                $datosProcesados['recommendation'] = $datosEncuesta['recommendation'] === '1' ? '1' : '0';
-            }
-            
-            // ✅ CORRECCIÓN: Contact medium (guardar como array de strings)
-            if (isset($datosEncuesta['contactMedium']) && is_array($datosEncuesta['contactMedium'])) {
-                // Asegurar que todos los valores sean strings
-                $datosProcesados['contactMedium'] = array_map('strval', $datosEncuesta['contactMedium']);
-            }
-            
-            if (isset($datosEncuesta['contactMediumOther']) && !empty($datosEncuesta['contactMediumOther'])) {
-                $datosProcesados['contactMediumOther'] = $datosEncuesta['contactMediumOther'];
-            }
-            
-            // Additional feedback
-            if (isset($datosEncuesta['additionalFeedback']) && !empty($datosEncuesta['additionalFeedback'])) {
-                $datosProcesados['additionalFeedback'] = trim($datosEncuesta['additionalFeedback']);
-            }
-            
-            // Client name (obligatorio)
-            if (isset($datosEncuesta['clientName']) && !empty($datosEncuesta['clientName'])) {
-                $datosProcesados['clientName'] = trim($datosEncuesta['clientName']);
-            }
-            
-            $datosProcesados['estatus'] = $datosEncuesta['estatus'] ?? '2';
-            
-            $encuesta->set($datosProcesados);
-            $entityManager->saveEntity($encuesta);
-            
-            return true;
-            
-        } catch (\Exception $e) {
+{
+    try {
+        $encuesta = $entityManager->getEntity('CCustomerSurvey');
+        
+        if (!$encuesta) {
             return false;
         }
+        
+        $datosProcesados = [];
+        
+        // Campos básicos
+        if (isset($datosEncuesta['createdAt']) && !empty($datosEncuesta['createdAt'])) {
+            $datosProcesados['createdAt'] = $datosEncuesta['createdAt'];
+        }
+        
+        if (isset($datosEncuesta['emailAddress']) && !empty($datosEncuesta['emailAddress'])) {
+            $datosProcesados['emailAddress'] = trim($datosEncuesta['emailAddress']);
+        }
+        
+        if (isset($datosEncuesta['operationType']) && !empty($datosEncuesta['operationType'])) {
+            $datosProcesados['operationType'] = trim($datosEncuesta['operationType']);
+        }
+        
+        if (isset($datosEncuesta['assignedUserId']) && !empty($datosEncuesta['assignedUserId'])) {
+            $datosProcesados['assignedUserId'] = trim($datosEncuesta['assignedUserId']);
+        }
+        
+        // ✅ ACTUALIZADO: Campos de calificación (reciben valores 1-5 como string)
+        $camposCalificacion = [
+            'communicationEffectiveness',
+            'legalAdvice',
+            'businessKnowledge',
+            'personalPresentation',
+            'detailManagement',
+            'punctuality',
+            'commitmentLevel',
+            'problemSolving',
+            'fullSupport',
+            'unexpectedSituations',
+            'negotiationTiming',
+            'officeRating',
+            'generalAdvisorRating'
+        ];
+        
+        foreach ($camposCalificacion as $campo) {
+            if (isset($datosEncuesta[$campo]) && $datosEncuesta[$campo] !== '' && $datosEncuesta[$campo] !== null) {
+                $valor = (string)$datosEncuesta[$campo];
+                
+                // ✅ VALIDACIÓN: Solo aceptar valores entre "1" y "5"
+                if (in_array($valor, ['1', '2', '3', '4', '5'], true)) {
+                    $datosProcesados[$campo] = $valor;
+                } else {
+                    // Log de valor inválido
+                    $GLOBALS['log']->warning('Valor inválido para ' . $campo . ': ' . $valor);
+                }
+            }
+        }
+        
+        // Recommendation (guardar como string "0" o "1")
+        if (isset($datosEncuesta['recommendation'])) {
+            $datosProcesados['recommendation'] = $datosEncuesta['recommendation'] === '1' ? '1' : '0';
+        }
+        
+        // Contact medium (guardar como array de strings)
+        if (isset($datosEncuesta['contactMedium']) && is_array($datosEncuesta['contactMedium'])) {
+            $datosProcesados['contactMedium'] = array_map('strval', $datosEncuesta['contactMedium']);
+        }
+        
+        if (isset($datosEncuesta['contactMediumOther']) && !empty($datosEncuesta['contactMediumOther'])) {
+            $datosProcesados['contactMediumOther'] = $datosEncuesta['contactMediumOther'];
+        }
+        
+        // Additional feedback
+        if (isset($datosEncuesta['additionalFeedback']) && !empty($datosEncuesta['additionalFeedback'])) {
+            $datosProcesados['additionalFeedback'] = trim($datosEncuesta['additionalFeedback']);
+        }
+        
+        // Client name (obligatorio)
+        if (isset($datosEncuesta['clientName']) && !empty($datosEncuesta['clientName'])) {
+            $datosProcesados['clientName'] = trim($datosEncuesta['clientName']);
+        }
+        
+        $datosProcesados['estatus'] = $datosEncuesta['estatus'] ?? '2';
+        
+        $encuesta->set($datosProcesados);
+        $entityManager->saveEntity($encuesta);
+        
+        return true;
+        
+    } catch (\Exception $e) {
+        $GLOBALS['log']->error('Error guardando encuesta: ' . $e->getMessage());
+        return false;
     }
+}
     
     protected function obtenerEstadisticas($entityManager, $claId = null, $oficinaId = null, $mostrarTodas = false)
     {
@@ -680,7 +677,8 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 'fullSupport' => 0,
                 'unexpectedSituations' => 0,
                 'negotiationTiming' => 0,
-                'officeRating' => 0
+                'officeRating' => 0,
+                'businessKnowledge' => 0
             ],
             'distribucionCalificaciones' => ['1' => 0, '2' => 0, '3' => 0, '4' => 0, '5' => 0],
             'recomendacion' => ['si' => 0, 'no' => 0],  // ✅ AGREGADO

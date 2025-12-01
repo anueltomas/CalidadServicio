@@ -12,6 +12,7 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
             "assigned_user_id",
             "communicationEffectiveness",
             "legal_advice",
+            "business_knowledge",
             "personal_presentation",
             "detail_management",
             "punctuality",
@@ -33,9 +34,16 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
             Correo: "emailAddress",
             "1. ¿Qué tipo de operación realizó?": "operationType",
             "ID Asesor": "assignedUserId",
+
+            // ✅ CORREGIDO: Agregar mapeo para la pregunta 3
+            "3. Por favor, evalúe el servicio prestado por el Asesor Inmobiliario de Century 21 en cuanto a conocimiento del negocio inmobiliario":
+                "businessKnowledge",
+
             "Efectividad y regularidad en la Comunicación":
                 "communicationEffectiveness",
             "Asesoría legal, fiscal y financiera": "legalAdvice",
+            "Nivel de conocimiento del negocio inmobiliario":
+                "businessKnowledge", // ✅ Mantener este también por si acaso
             "Presentación Personal e Imagen": "personalPresentation",
             "Manejo de los detalles": "detailManagement",
             Puntualidad: "punctuality",
@@ -70,9 +78,10 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
             Otro: "9",
         };
 
-        this.fieldsScale0to4 = [
+        this.fieldsScale1to5 = [
             "communicationEffectiveness",
             "legalAdvice",
+            "businessKnowledge",
             "personalPresentation",
             "detailManagement",
             "punctuality",
@@ -82,7 +91,17 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
             "unexpectedSituations",
             "negotiationTiming",
             "officeRating",
+            "generalAdvisorRating",
         ];
+
+        this.escalaTextoANumero = {
+            excelente: "5",
+            "muy bueno": "4",
+            bueno: "3",
+            regular: "2",
+            deficiente: "1",
+            malo: "1",
+        };
 
         this.camposCalificacion1a5 = ["generalAdvisorRating"];
         this.camposRequeridos = ["emailAddress", "clientName", "operationType"];
@@ -360,6 +379,12 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
             "1. ¿Qué tipo de operación realizó?",
         ];
 
+        // ✅ NUEVO: Headers opcionales pero importantes
+        var headersOpcionales = [
+            "3. Por favor, evalúe el servicio prestado por el Asesor Inmobiliario de Century 21 en cuanto a conocimiento del negocio inmobiliario",
+            "Nivel de conocimiento del negocio inmobiliario",
+        ];
+
         var erroresHeaders = [];
         headersCriticos.forEach(function (headerCritico) {
             if (!headers.includes(headerCritico)) {
@@ -368,6 +393,17 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
                 );
             }
         });
+
+        // ✅ ADVERTIR: Si falta el header de businessKnowledge
+        var tieneBusinessKnowledge = headersOpcionales.some(function (header) {
+            return headers.includes(header);
+        });
+
+        if (!tieneBusinessKnowledge) {
+            console.warn(
+                '⚠️ Advertencia: No se encontró el header de "Conocimiento del negocio inmobiliario"'
+            );
+        }
 
         if (erroresHeaders.length > 0) {
             throw new Error(
@@ -402,6 +438,18 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
                     continue;
                 }
 
+                // ✅ NUEVO: Verificar errores de validación
+                if (
+                    encuesta._erroresValidacion &&
+                    encuesta._erroresValidacion.length > 0
+                ) {
+                    encuesta._erroresValidacion.forEach(function (error) {
+                        erroresGlobales.push("Línea " + (i + 1) + ": " + error);
+                    });
+                    // Eliminar el campo temporal antes de agregar
+                    delete encuesta._erroresValidacion;
+                }
+
                 // Solo agregar si tiene los campos mínimos
                 if (
                     encuesta.clientName &&
@@ -412,7 +460,9 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
                     encuestas.push(encuesta);
                 } else {
                     erroresGlobales.push(
-                        "Línea " + (i + 1) + ": Faltan campos requeridos"
+                        "Línea " +
+                            (i + 1) +
+                            ": Faltan campos requeridos (clientName, emailAddress, operationType)"
                     );
                 }
 
@@ -439,9 +489,12 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
             "Preparando envío de " + encuestas.length + " encuestas válidas..."
         );
 
-        // Mostrar resumen de errores si existen
+        // ✅ MEJORADO: Mostrar resumen de errores si existen
         if (erroresGlobales.length > 0) {
-            //console.warn('Errores encontrados durante el procesamiento:', erroresGlobales);
+            console.warn("⚠️ Errores de validación encontrados:", {
+                total: erroresGlobales.length,
+                errores: erroresGlobales,
+            });
         }
 
         return encuestas;
@@ -474,6 +527,7 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
 
     ImportadorCSV.prototype.mapearEncuesta = function (headers, valores) {
         var encuesta = {};
+        var erroresValidacion = [];
 
         for (var i = 0; i < headers.length; i++) {
             var header = headers[i];
@@ -490,21 +544,31 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
                 encuesta[campoMapeado] = this.convertirRecomendacion(valor);
             } else if (campoMapeado === "contactMedium") {
                 encuesta[campoMapeado] = this.procesarContactMedium(valor);
-            } else if (this.fieldsScale0to4.includes(campoMapeado)) {
-                var valorNum = this.convertirEscala(valor);
-                if (valorNum !== null) {
-                    encuesta[campoMapeado] = valorNum;
-                }
-            } else if (this.camposCalificacion1a5.includes(campoMapeado)) {
+            } else if (this.fieldsScale1to5.includes(campoMapeado)) {
+                // ✅ ACTUALIZADO: Usar la función correcta para escala 1-5
                 var valorNum = this.convertirEscala1a5(valor);
                 if (valorNum !== null) {
-                    encuesta[campoMapeado] = valorNum;
+                    encuesta[campoMapeado] = valorNum; // Ya es string
+                } else if (valor && valor.toString().trim() !== "") {
+                    // ✅ NUEVO: Registrar error de validación
+                    erroresValidacion.push(
+                        'Campo "' +
+                            header +
+                            '" tiene valor inválido: "' +
+                            valor +
+                            '" (debe ser 1-5 o texto: Excelente/Muy Bueno/Bueno/Regular/Deficiente)'
+                    );
                 }
             } else {
                 // Campos de texto normales
                 encuesta[campoMapeado] =
                     valor && valor.trim() !== "" ? valor.trim() : null;
             }
+        }
+
+        // ✅ NUEVO: Si hay errores de validación, agregarlos al objeto
+        if (erroresValidacion.length > 0) {
+            encuesta._erroresValidacion = erroresValidacion;
         }
 
         return encuesta;
@@ -558,25 +622,21 @@ define("reportes-calidad-servicio:views/modules/importador-csv", [], function ()
     ImportadorCSV.prototype.convertirEscala1a5 = function (valor) {
         if (!valor || valor.toString().trim() === "") return null;
 
+        // Intentar conversión directa a número
         var valorNum = parseInt(valor);
         if (!isNaN(valorNum) && valorNum >= 1 && valorNum <= 5) {
-            return valorNum;
+            return valorNum.toString(); // ✅ Retornar como string
         }
 
         // Intentar mapear texto a número
-        var escalas = {
-            excelente: 5,
-            "muy bueno": 4,
-            bueno: 3,
-            regular: 2,
-            deficiente: 1,
-            malo: 1,
-        };
-
         var valorLower = valor.toString().toLowerCase().trim();
-        if (escalas.hasOwnProperty(valorLower)) {
-            return escalas[valorLower];
+
+        if (this.escalaTextoANumero.hasOwnProperty(valorLower)) {
+            return this.escalaTextoANumero[valorLower];
         }
+
+        // ✅ NUEVO: Log de valores inválidos para debugging
+        console.warn("Valor de escala inválido encontrado:", valor);
 
         return null;
     };
