@@ -530,61 +530,66 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     // NUEVA FUNCIÓN: Obtener usuarios de un CLA incluyendo todas sus oficinas
     // Obtener usuarios de un CLA incluyendo todas sus oficinas
     protected function getUserIdsByCLA($entityManager, $claId)
-    {
-        try {
-            $pdo = $entityManager->getPDO();
-            
-            // Obtener todos los usuarios que pertenecen al CLA
-            $sql = "SELECT DISTINCT user_id 
-                    FROM team_user 
-                    WHERE team_id = :claId 
-                    AND deleted = 0";
-            
-            $sth = $pdo->prepare($sql);
-            $sth->bindValue(':claId', $claId);
-            $sth->execute();
-            
-            $userIds = [];
-            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
-                $userIds[] = $row['user_id'];
-            }
-            
-            // Obtener las oficinas de estos usuarios (teams que NO son CLAs)
-            $sql2 = "SELECT DISTINCT tu.team_id, t.name
-                    FROM team_user tu
-                    INNER JOIN team t ON tu.team_id = t.id
-                    WHERE tu.user_id IN (
-                        SELECT user_id FROM team_user WHERE team_id = :claId AND deleted = 0
-                    )
-                    AND tu.team_id != :claId
-                    AND t.id NOT LIKE 'CLA%'
-                    AND tu.deleted = 0
-                    AND t.deleted = 0";
-            
-            $sth2 = $pdo->prepare($sql2);
-            $sth2->bindValue(':claId', $claId);
-            $sth2->execute();
-            
-            $oficinasIds = [];
-            while ($row = $sth2->fetch(\PDO::FETCH_ASSOC)) {
+{
+    try {
+        $pdo = $entityManager->getPDO();
+        
+        // Obtener todos los usuarios que pertenecen al CLA
+        $sql = "SELECT DISTINCT user_id 
+                FROM team_user 
+                WHERE team_id = :claId 
+                AND deleted = 0";
+        
+        $sth = $pdo->prepare($sql);
+        $sth->bindValue(':claId', $claId);
+        $sth->execute();
+        
+        $userIds = [];
+        while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+            $userIds[] = $row['user_id'];
+        }
+        
+        // Obtener las oficinas de estos usuarios (teams que NO son CLAs y NO es venezuela)
+        $sql2 = "SELECT DISTINCT tu.team_id, t.name
+                FROM team_user tu
+                INNER JOIN team t ON tu.team_id = t.id
+                WHERE tu.user_id IN (
+                    SELECT user_id FROM team_user WHERE team_id = :claId AND deleted = 0
+                )
+                AND tu.team_id != :claId
+                AND t.id NOT LIKE 'CLA%'
+                AND t.id != 'venezuela'
+                AND LOWER(t.name) != 'venezuela'
+                AND tu.deleted = 0
+                AND t.deleted = 0";
+        
+        $sth2 = $pdo->prepare($sql2);
+        $sth2->bindValue(':claId', $claId);
+        $sth2->execute();
+        
+        $oficinasIds = [];
+        while ($row = $sth2->fetch(\PDO::FETCH_ASSOC)) {
+            // ✅ DOBLE VERIFICACIÓN: Excluir venezuela
+            if (strtolower($row['team_id']) !== 'venezuela' && strtolower($row['name']) !== 'venezuela') {
                 $oficinasIds[] = $row['team_id'];
             }
-            
-            // Obtener usuarios de todas las oficinas encontradas
-            foreach ($oficinasIds as $oficinaId) {
-                $oficinaUsers = $this->getUserIdsByTeam($entityManager, $oficinaId);
-                $userIds = array_merge($userIds, $oficinaUsers);
-            }
-            
-            // Eliminar duplicados
-            $userIds = array_unique($userIds);
-            
-            return $userIds;
-            
-        } catch (\Exception $e) {
-            return [];
         }
+        
+        // Obtener usuarios de todas las oficinas encontradas
+        foreach ($oficinasIds as $oficinaId) {
+            $oficinaUsers = $this->getUserIdsByTeam($entityManager, $oficinaId);
+            $userIds = array_merge($userIds, $oficinaUsers);
+        }
+        
+        // Eliminar duplicados
+        $userIds = array_unique($userIds);
+        
+        return $userIds;
+        
+    } catch (\Exception $e) {
+        return [];
     }
+}
 
     protected function calcularPromediosCategorias($entityManager, $whereClause)
     {
