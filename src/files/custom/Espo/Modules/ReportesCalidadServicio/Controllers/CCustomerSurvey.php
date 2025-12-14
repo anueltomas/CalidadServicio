@@ -155,7 +155,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             $user = $this->getContainer()->get('user');
             $userId = $user->get('id');
             
-            // ✅ Verificar si es admin por tipo
+            // Verificar si es admin por tipo
             $esAdmin = $user->isAdmin();
             
             // Obtener roles del usuario para Casa Nacional
@@ -165,34 +165,34 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             // Obtener parámetros de filtro
             $claId = $request->get('claId');
             $oficinaId = $request->get('oficinaId');
+            $asesorId = $request->get('asesorId'); // ✅ NUEVO
             
             // Validar permisos según rol
             if (!$esAdmin && !$esCasaNac) {
-                // Usuario regular - validar CLA
-                $userTeams = $this->getUserTeams($entityManager, $userId);
-                $userClaId = $this->extractCLAFromTeams($userTeams);
-                
-                // Si solicitan un CLA específico, verificar que sea el suyo
-                if ($claId && $claId !== 'CLA0' && $claId !== $userClaId) {
+                // Usuario regular - validar que solo vea sus propias estadísticas
+                if ($asesorId && $asesorId !== $userId) {
                     return [
                         'success' => false,
-                        'error' => 'No tiene permisos para ver este CLA',
+                        'error' => 'No tiene permisos para ver este asesor',
                         'data' => $this->obtenerEstadisticasPorDefecto()
                     ];
                 }
+                
+                // Si no especificó asesor, forzar a que vea solo el suyo
+                if (!$asesorId) {
+                    $asesorId = $userId;
+                }
             }
             
-            $mostrarTodas = empty($claId) && empty($oficinaId);
+            $mostrarTodas = empty($claId) && empty($oficinaId) && empty($asesorId);
             
-            $stats = $this->obtenerEstadisticas($entityManager, $claId, $oficinaId, $mostrarTodas);
+            $stats = $this->obtenerEstadisticas($entityManager, $claId, $oficinaId, $asesorId, $mostrarTodas);
             
-
             $estadisticasOficinas = [];
             if ($claId && $claId !== 'CLA0') {
                 $estadisticasOficinas = $this->obtenerEstadisticasPorOficina($entityManager, $claId);
             }
 
-            // Modify the return to include:
             return [
                 'success' => true,
                 'data' => array_merge($stats, [
@@ -394,7 +394,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     }
 }
     
-    protected function obtenerEstadisticas($entityManager, $claId = null, $oficinaId = null, $mostrarTodas = false)
+    protected function obtenerEstadisticas($entityManager, $claId = null, $oficinaId = null, $asesorId = null, $mostrarTodas = false)
     {
         try {
             // Construir where clause base - SIEMPRE filtrar por estatus completada (2)
@@ -403,17 +403,23 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 'estatus' => '2'
             ];
             
-            // CORRECCIÓN: Aplicar filtros cuando NO es "mostrar todas" O cuando hay un CLA específico
-            if (!$mostrarTodas || $claId) {
-                if ($oficinaId) {
-                    // Filtrar por oficina específica
+             if (!$mostrarTodas || $claId || $oficinaId || $asesorId) {
+        
+                // Prioridad 1: Filtrar por asesor específico
+                if ($asesorId) {
+                    $whereClause['assignedUserId'] = $asesorId;
+                }
+                // Prioridad 2: Filtrar por oficina específica
+                elseif ($oficinaId) {
                     $userIds = $this->getUserIdsByTeam($entityManager, $oficinaId);
                     if (!empty($userIds)) {
                         $whereClause['assignedUserId'] = $userIds;
                     } else {
                         return $this->obtenerEstadisticasPorDefecto();
                     }
-                } elseif ($claId) {
+                }
+                // Prioridad 3: Filtrar por CLA
+                elseif ($claId) {
                     if ($claId === 'CLA0') {
                         // No filtrar por usuarios - mostrar todas las encuestas
                     } else {
@@ -530,66 +536,66 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     // NUEVA FUNCIÓN: Obtener usuarios de un CLA incluyendo todas sus oficinas
     // Obtener usuarios de un CLA incluyendo todas sus oficinas
     protected function getUserIdsByCLA($entityManager, $claId)
-{
-    try {
-        $pdo = $entityManager->getPDO();
-        
-        // Obtener todos los usuarios que pertenecen al CLA
-        $sql = "SELECT DISTINCT user_id 
-                FROM team_user 
-                WHERE team_id = :claId 
-                AND deleted = 0";
-        
-        $sth = $pdo->prepare($sql);
-        $sth->bindValue(':claId', $claId);
-        $sth->execute();
-        
-        $userIds = [];
-        while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
-            $userIds[] = $row['user_id'];
-        }
-        
-        // Obtener las oficinas de estos usuarios (teams que NO son CLAs y NO es venezuela)
-        $sql2 = "SELECT DISTINCT tu.team_id, t.name
-                FROM team_user tu
-                INNER JOIN team t ON tu.team_id = t.id
-                WHERE tu.user_id IN (
-                    SELECT user_id FROM team_user WHERE team_id = :claId AND deleted = 0
-                )
-                AND tu.team_id != :claId
-                AND t.id NOT LIKE 'CLA%'
-                AND t.id != 'venezuela'
-                AND LOWER(t.name) != 'venezuela'
-                AND tu.deleted = 0
-                AND t.deleted = 0";
-        
-        $sth2 = $pdo->prepare($sql2);
-        $sth2->bindValue(':claId', $claId);
-        $sth2->execute();
-        
-        $oficinasIds = [];
-        while ($row = $sth2->fetch(\PDO::FETCH_ASSOC)) {
-            // ✅ DOBLE VERIFICACIÓN: Excluir venezuela
-            if (strtolower($row['team_id']) !== 'venezuela' && strtolower($row['name']) !== 'venezuela') {
-                $oficinasIds[] = $row['team_id'];
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            // Obtener todos los usuarios que pertenecen al CLA
+            $sql = "SELECT DISTINCT user_id 
+                    FROM team_user 
+                    WHERE team_id = :claId 
+                    AND deleted = 0";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':claId', $claId);
+            $sth->execute();
+            
+            $userIds = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                $userIds[] = $row['user_id'];
             }
+            
+            // Obtener las oficinas de estos usuarios (teams que NO son CLAs y NO es venezuela)
+            $sql2 = "SELECT DISTINCT tu.team_id, t.name
+                    FROM team_user tu
+                    INNER JOIN team t ON tu.team_id = t.id
+                    WHERE tu.user_id IN (
+                        SELECT user_id FROM team_user WHERE team_id = :claId AND deleted = 0
+                    )
+                    AND tu.team_id != :claId
+                    AND t.id NOT LIKE 'CLA%'
+                    AND t.id != 'venezuela'
+                    AND LOWER(t.name) != 'venezuela'
+                    AND tu.deleted = 0
+                    AND t.deleted = 0";
+            
+            $sth2 = $pdo->prepare($sql2);
+            $sth2->bindValue(':claId', $claId);
+            $sth2->execute();
+            
+            $oficinasIds = [];
+            while ($row = $sth2->fetch(\PDO::FETCH_ASSOC)) {
+                // ✅ DOBLE VERIFICACIÓN: Excluir venezuela
+                if (strtolower($row['team_id']) !== 'venezuela' && strtolower($row['name']) !== 'venezuela') {
+                    $oficinasIds[] = $row['team_id'];
+                }
+            }
+            
+            // Obtener usuarios de todas las oficinas encontradas
+            foreach ($oficinasIds as $oficinaId) {
+                $oficinaUsers = $this->getUserIdsByTeam($entityManager, $oficinaId);
+                $userIds = array_merge($userIds, $oficinaUsers);
+            }
+            
+            // Eliminar duplicados
+            $userIds = array_unique($userIds);
+            
+            return $userIds;
+            
+        } catch (\Exception $e) {
+            return [];
         }
-        
-        // Obtener usuarios de todas las oficinas encontradas
-        foreach ($oficinasIds as $oficinaId) {
-            $oficinaUsers = $this->getUserIdsByTeam($entityManager, $oficinaId);
-            $userIds = array_merge($userIds, $oficinaUsers);
-        }
-        
-        // Eliminar duplicados
-        $userIds = array_unique($userIds);
-        
-        return $userIds;
-        
-    } catch (\Exception $e) {
-        return [];
     }
-}
 
     protected function calcularPromediosCategorias($entityManager, $whereClause)
     {
@@ -782,246 +788,677 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     }
 
     protected function obtenerEstadisticasContactoRecomendacion($entityManager, $whereClause)
-{
-    $stats = [
-        'recomendacion' => [
-            'si' => 0,
-            'no' => 0
-        ],
-        'mediosContacto' => []
-    ];
-    
-    // Recomendación
-    $stats['recomendacion']['si'] = $entityManager->getRepository('CCustomerSurvey')
-        ->where(array_merge($whereClause, ['recommendation' => '1']))
-        ->count();
+    {
+        $stats = [
+            'recomendacion' => [
+                'si' => 0,
+                'no' => 0
+            ],
+            'mediosContacto' => []
+        ];
         
-    $stats['recomendacion']['no'] = $entityManager->getRepository('CCustomerSurvey')
-        ->where(array_merge($whereClause, ['recommendation' => '0']))
-        ->count();
-    
-    // ✅ ACTUALIZADO: Mapeo de medios de contacto según el formulario
-    $encuestas = $entityManager->getRepository('CCustomerSurvey')
-        ->where(array_merge($whereClause, ['contactMedium!=' => null]))
-        ->find();
-    
-    $mediosMap = [
-        '0' => 'Familiar/Amigo',
-        '1' => 'Mercado Libre',
-        '2' => 'Página Web',
-        '3' => 'Facebook',
-        '4' => 'Estados WhatsApp',
-        '5' => 'Valla/Rótulo',
-        '6' => 'Instagram',
-        '7' => 'Visita en oficina',
-        '8' => 'Contacto Directo',
-        '9' => 'Otro'
-    ];
-    
-    // Inicializar todos los medios en 0
-    foreach ($mediosMap as $nombre) {
-        $stats['mediosContacto'][$nombre] = 0;
-    }
-    
-    // Contar cada medio
-    foreach ($encuestas as $encuesta) {
-        $contactMedium = $encuesta->get('contactMedium');
+        // Recomendación
+        $stats['recomendacion']['si'] = $entityManager->getRepository('CCustomerSurvey')
+            ->where(array_merge($whereClause, ['recommendation' => '1']))
+            ->count();
+            
+        $stats['recomendacion']['no'] = $entityManager->getRepository('CCustomerSurvey')
+            ->where(array_merge($whereClause, ['recommendation' => '0']))
+            ->count();
         
-        if (is_string($contactMedium)) {
-            $contactMedium = json_decode($contactMedium, true);
+        // ✅ ACTUALIZADO: Mapeo de medios de contacto según el formulario
+        $encuestas = $entityManager->getRepository('CCustomerSurvey')
+            ->where(array_merge($whereClause, ['contactMedium!=' => null]))
+            ->find();
+        
+        $mediosMap = [
+            '0' => 'Familiar/Amigo',
+            '1' => 'Mercado Libre',
+            '2' => 'Página Web',
+            '3' => 'Facebook',
+            '4' => 'Estados WhatsApp',
+            '5' => 'Valla/Rótulo',
+            '6' => 'Instagram',
+            '7' => 'Visita en oficina',
+            '8' => 'Contacto Directo',
+            '9' => 'Otro'
+        ];
+        
+        // Inicializar todos los medios en 0
+        foreach ($mediosMap as $nombre) {
+            $stats['mediosContacto'][$nombre] = 0;
         }
         
-        if (is_array($contactMedium)) {
-            foreach ($contactMedium as $medio) {
-                $medioStr = (string)$medio;
-                if (isset($mediosMap[$medioStr])) {
-                    $stats['mediosContacto'][$mediosMap[$medioStr]]++;
+        // Contar cada medio
+        foreach ($encuestas as $encuesta) {
+            $contactMedium = $encuesta->get('contactMedium');
+            
+            if (is_string($contactMedium)) {
+                $contactMedium = json_decode($contactMedium, true);
+            }
+            
+            if (is_array($contactMedium)) {
+                foreach ($contactMedium as $medio) {
+                    $medioStr = (string)$medio;
+                    if (isset($mediosMap[$medioStr])) {
+                        $stats['mediosContacto'][$mediosMap[$medioStr]]++;
+                    }
                 }
             }
         }
+        
+        return $stats;
     }
-    
-    return $stats;
-}
 
-    public function postActionVerificarDuplicados($params, $data, $request)
-{
-    try {
-        if (!$request->isPost()) {
-            throw new BadRequest("Método no permitido");
-        }
-        
-        // ✅ Validar permisos - solo admin puede verificar duplicados
-        $user = $this->getContainer()->get('user');
-        if (!$user->isAdmin()) {
-            return [
-                'success' => false,
-                'error' => 'No tiene permisos para verificar duplicados',
-                'duplicadosEncontrados' => 0,
-                'duplicados' => []
-            ];
-        }
-        
-        $entityManager = $this->getContainer()->get('entityManager');
-        if (!$entityManager) {
-            throw new Error("No se pudo obtener entityManager");
-        }
-        
-        $data = $request->getParsedBody();
-        if (is_object($data)) {
-            $data = (array) $data;
-        }
-        
-        $datosVerificacion = $data['datosVerificacion'] ?? [];
-        
-        if (!is_array($datosVerificacion)) {
-            throw new BadRequest("Formato de datos inválido");
-        }
-        
-        $duplicadosEncontrados = [];
-        $detallesDuplicados = [];
-        
-        foreach ($datosVerificacion as $index => $dato) {
-            try {
-                if (is_object($dato)) {
-                    $dato = (array) $dato;
-                }
-                
-                $email = $dato['emailAddress'] ?? null;
-                $clientName = $dato['clientName'] ?? null;
-                $operationType = $dato['operationType'] ?? null;
-                $createdAt = $dato['createdAt'] ?? null;
-                $assignedUserId = $dato['assignedUserId'] ?? null;
-                
-                // Buscar duplicados usando múltiples criterios
-                $duplicado = $this->buscarDuplicadoCompleto([
-                    'emailAddress' => $email,
-                    'clientName' => $clientName,
-                    'operationType' => $operationType,
-                    'createdAt' => $createdAt,
-                    'assignedUserId' => $assignedUserId
-                ], $entityManager);
-                
-                if ($duplicado) {
-                    $duplicadosEncontrados[] = $duplicado;
-                    $detallesDuplicados[] = [
+        public function postActionVerificarDuplicados($params, $data, $request)
+    {
+        try {
+            if (!$request->isPost()) {
+                throw new BadRequest("Método no permitido");
+            }
+            
+            // ✅ Validar permisos - solo admin puede verificar duplicados
+            $user = $this->getContainer()->get('user');
+            if (!$user->isAdmin()) {
+                return [
+                    'success' => false,
+                    'error' => 'No tiene permisos para verificar duplicados',
+                    'duplicadosEncontrados' => 0,
+                    'duplicados' => []
+                ];
+            }
+            
+            $entityManager = $this->getContainer()->get('entityManager');
+            if (!$entityManager) {
+                throw new Error("No se pudo obtener entityManager");
+            }
+            
+            $data = $request->getParsedBody();
+            if (is_object($data)) {
+                $data = (array) $data;
+            }
+            
+            $datosVerificacion = $data['datosVerificacion'] ?? [];
+            
+            if (!is_array($datosVerificacion)) {
+                throw new BadRequest("Formato de datos inválido");
+            }
+            
+            $duplicadosEncontrados = [];
+            $detallesDuplicados = [];
+            
+            foreach ($datosVerificacion as $index => $dato) {
+                try {
+                    if (is_object($dato)) {
+                        $dato = (array) $dato;
+                    }
+                    
+                    $email = $dato['emailAddress'] ?? null;
+                    $clientName = $dato['clientName'] ?? null;
+                    $operationType = $dato['operationType'] ?? null;
+                    $createdAt = $dato['createdAt'] ?? null;
+                    $assignedUserId = $dato['assignedUserId'] ?? null;
+                    
+                    // Buscar duplicados usando múltiples criterios
+                    $duplicado = $this->buscarDuplicadoCompleto([
                         'emailAddress' => $email,
                         'clientName' => $clientName,
                         'operationType' => $operationType,
                         'createdAt' => $createdAt,
-                        'assignedUserId' => $assignedUserId,
-                        'razon' => $duplicado['razon'],
-                        'indice' => $index
+                        'assignedUserId' => $assignedUserId
+                    ], $entityManager);
+                    
+                    if ($duplicado) {
+                        $duplicadosEncontrados[] = $duplicado;
+                        $detallesDuplicados[] = [
+                            'emailAddress' => $email,
+                            'clientName' => $clientName,
+                            'operationType' => $operationType,
+                            'createdAt' => $createdAt,
+                            'assignedUserId' => $assignedUserId,
+                            'razon' => $duplicado['razon'],
+                            'indice' => $index
+                        ];
+                    }
+                    
+                } catch (\Exception $e) {
+                    // Continuar con el siguiente registro si hay error en uno
+                    continue;
+                }
+            }
+            
+            return [
+                'success' => true,
+                'duplicadosEncontrados' => count($duplicadosEncontrados),
+                'duplicados' => $duplicadosEncontrados,
+                'detallesDuplicados' => $detallesDuplicados
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'duplicadosEncontrados' => 0,
+                'duplicados' => [],
+                'detallesDuplicados' => []
+            ];
+        }
+    }
+
+    // ✅ NUEVO MÉTODO PARA BÚSQUEDA COMPLETA DE DUPLICADOS
+    protected function buscarDuplicadoCompleto($datos, $entityManager)
+    {
+        $email = $datos['emailAddress'] ?? null;
+        $clientName = $datos['clientName'] ?? null;
+        $operationType = $datos['operationType'] ?? null;
+        $createdAt = $datos['createdAt'] ?? null;
+        $assignedUserId = $datos['assignedUserId'] ?? null;
+        
+        // Criterio 1: Mismo email + mismo tipo operación + misma fecha (mismo día)
+        if ($email && $operationType && $createdAt) {
+            $fechaNormalizada = substr($createdAt, 0, 10); // YYYY-MM-DD
+            
+            $encuestas = $entityManager->getRepository('CCustomerSurvey')
+                ->where([
+                    'emailAddress' => $email,
+                    'operationType' => $operationType,
+                    'deleted' => false
+                ])
+                ->find();
+            
+            foreach ($encuestas as $encuesta) {
+                $fechaExistente = $encuesta->get('createdAt');
+                if ($fechaExistente && substr($fechaExistente, 0, 10) === $fechaNormalizada) {
+                    return [
+                        'emailAddress' => $encuesta->get('emailAddress'),
+                        'clientName' => $encuesta->get('clientName'),
+                        'operationType' => $encuesta->get('operationType'),
+                        'createdAt' => $encuesta->get('createdAt'),
+                        'assignedUserId' => $encuesta->get('assignedUserId'),
+                        'razon' => 'Mismo email, operación y fecha'
                     ];
                 }
-                
-            } catch (\Exception $e) {
-                // Continuar con el siguiente registro si hay error en uno
-                continue;
             }
         }
         
-        return [
-            'success' => true,
-            'duplicadosEncontrados' => count($duplicadosEncontrados),
-            'duplicados' => $duplicadosEncontrados,
-            'detallesDuplicados' => $detallesDuplicados
-        ];
-        
-    } catch (\Exception $e) {
-        return [
-            'success' => false,
-            'error' => $e->getMessage(),
-            'duplicadosEncontrados' => 0,
-            'duplicados' => [],
-            'detallesDuplicados' => []
-        ];
-    }
-}
-
-// ✅ NUEVO MÉTODO PARA BÚSQUEDA COMPLETA DE DUPLICADOS
-protected function buscarDuplicadoCompleto($datos, $entityManager)
-{
-    $email = $datos['emailAddress'] ?? null;
-    $clientName = $datos['clientName'] ?? null;
-    $operationType = $datos['operationType'] ?? null;
-    $createdAt = $datos['createdAt'] ?? null;
-    $assignedUserId = $datos['assignedUserId'] ?? null;
-    
-    // Criterio 1: Mismo email + mismo tipo operación + misma fecha (mismo día)
-    if ($email && $operationType && $createdAt) {
-        $fechaNormalizada = substr($createdAt, 0, 10); // YYYY-MM-DD
-        
-        $encuestas = $entityManager->getRepository('CCustomerSurvey')
-            ->where([
-                'emailAddress' => $email,
-                'operationType' => $operationType,
-                'deleted' => false
-            ])
-            ->find();
-        
-        foreach ($encuestas as $encuesta) {
-            $fechaExistente = $encuesta->get('createdAt');
-            if ($fechaExistente && substr($fechaExistente, 0, 10) === $fechaNormalizada) {
+        // Criterio 2: Mismo nombre cliente + mismo asesor + mismo tipo operación
+        if ($clientName && $assignedUserId && $operationType) {
+            $encuesta = $entityManager->getRepository('CCustomerSurvey')
+                ->where([
+                    'clientName' => $clientName,
+                    'assignedUserId' => $assignedUserId,
+                    'operationType' => $operationType,
+                    'deleted' => false
+                ])
+                ->findOne();
+            
+            if ($encuesta) {
                 return [
                     'emailAddress' => $encuesta->get('emailAddress'),
                     'clientName' => $encuesta->get('clientName'),
                     'operationType' => $encuesta->get('operationType'),
                     'createdAt' => $encuesta->get('createdAt'),
                     'assignedUserId' => $encuesta->get('assignedUserId'),
-                    'razon' => 'Mismo email, operación y fecha'
+                    'razon' => 'Mismo cliente, asesor y operación'
                 ];
             }
         }
-    }
-    
-    // Criterio 2: Mismo nombre cliente + mismo asesor + mismo tipo operación
-    if ($clientName && $assignedUserId && $operationType) {
-        $encuesta = $entityManager->getRepository('CCustomerSurvey')
-            ->where([
-                'clientName' => $clientName,
-                'assignedUserId' => $assignedUserId,
-                'operationType' => $operationType,
-                'deleted' => false
-            ])
-            ->findOne();
         
-        if ($encuesta) {
+        // Criterio 3: Mismo email + mismo asesor (más flexible)
+        if ($email && $assignedUserId) {
+            $encuesta = $entityManager->getRepository('CCustomerSurvey')
+                ->where([
+                    'emailAddress' => $email,
+                    'assignedUserId' => $assignedUserId,
+                    'deleted' => false
+                ])
+                ->findOne();
+            
+            if ($encuesta) {
+                return [
+                    'emailAddress' => $encuesta->get('emailAddress'),
+                    'clientName' => $encuesta->get('clientName'),
+                    'operationType' => $encuesta->get('operationType'),
+                    'createdAt' => $encuesta->get('createdAt'),
+                    'assignedUserId' => $encuesta->get('assignedUserId'),
+                    'razon' => 'Mismo email y asesor'
+                ];
+            }
+        }
+        
+        return null;
+    }
+
+    public function getActionGetComparacionAsesores($params, $data, $request)
+    {
+        try {
+            $oficinaId = $request->get('oficinaId');
+            
+            if (!$oficinaId) {
+                return [
+                    'success' => false,
+                    'error' => 'ID de oficina no proporcionado'
+                ];
+            }
+            
+            $entityManager = $this->getContainer()->get('entityManager');
+            
+            // ✅ VALIDAR PERMISOS
+            $user = $this->getContainer()->get('user');
+            $userId = $user->get('id');
+            $esAdmin = $user->isAdmin();
+            
+            // Verificar que el usuario tenga acceso a esta oficina
+            if (!$esAdmin) {
+                $userTeams = $this->getUserTeams($entityManager, $userId);
+                $userTeamIds = array_column($userTeams, 'id');
+                
+                // Si el usuario no pertenece a la oficina, verificar si pertenece al CLA padre
+                if (!in_array($oficinaId, $userTeamIds)) {
+                    $oficinaCLA = $this->getCLADeOficina($entityManager, $oficinaId);
+                    $userCLA = $this->getUserCLA($entityManager, $userId);
+                    
+                    if (!$oficinaCLA || $oficinaCLA !== $userCLA) {
+                        return [
+                            'success' => false,
+                            'error' => 'No tiene permisos para ver esta oficina',
+                            'data' => []
+                        ];
+                    }
+                }
+            }
+            
+            // Obtener usuarios de la oficina usando getUserIdsByTeam
+            $usuarios = $this->getUserIdsByTeam($entityManager, $oficinaId);
+            
+            if (empty($usuarios)) {
+                return [
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'No hay asesores en esta oficina'
+                ];
+            }
+            
+            $resultados = [];
+            
+            foreach ($usuarios as $usuarioId) {
+                $stats = $this->obtenerEstadisticasAsesor($entityManager, $usuarioId);
+                
+                if ($stats['totalEncuestas'] > 0) {
+                    // Calcular porcentaje de desempeño
+                    $sumaCalificaciones = 0;
+                    $contador = 0;
+                    
+                    $camposCalificacion = [
+                        'communicationEffectiveness',
+                        'legalAdvice',
+                        'businessKnowledge',
+                        'personalPresentation',
+                        'detailManagement',
+                        'punctuality',
+                        'commitmentLevel',
+                        'problemSolving',
+                        'fullSupport',
+                        'unexpectedSituations',
+                        'negotiationTiming',
+                        'generalAdvisorRating'
+                    ];
+                    
+                    foreach ($camposCalificacion as $campo) {
+                        if (isset($stats[$campo]) && $stats[$campo] > 0) {
+                            $sumaCalificaciones += $stats[$campo];
+                            $contador++;
+                        }
+                    }
+                    
+                    $promedioGeneral = $contador > 0 ? ($sumaCalificaciones / $contador) : 0;
+                    $porcentaje = ($promedioGeneral / 5) * 100; // Convertir a porcentaje (5 = máximo)
+                    
+                    // Solo incluir asesores con al menos 1 encuesta
+                    $resultados[] = [
+                        'id' => $usuarioId,
+                        'nombre' => $this->getNombreUsuario($entityManager, $usuarioId),
+                        'totalEncuestas' => $stats['totalEncuestas'],
+                        'promedioGeneral' => round($promedioGeneral, 2),
+                        'porcentaje' => round($porcentaje, 1)
+                    ];
+                }
+            }
+            
+            // Ordenar por porcentaje descendente
+            usort($resultados, function($a, $b) {
+                return $b['porcentaje'] <=> $a['porcentaje'];
+            });
+            
             return [
-                'emailAddress' => $encuesta->get('emailAddress'),
-                'clientName' => $encuesta->get('clientName'),
-                'operationType' => $encuesta->get('operationType'),
-                'createdAt' => $encuesta->get('createdAt'),
-                'assignedUserId' => $encuesta->get('assignedUserId'),
-                'razon' => 'Mismo cliente, asesor y operación'
+                'success' => true,
+                'data' => $resultados,
+                'totalAsesores' => count($resultados)
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'data' => []
             ];
         }
     }
-    
-    // Criterio 3: Mismo email + mismo asesor (más flexible)
-    if ($email && $assignedUserId) {
-        $encuesta = $entityManager->getRepository('CCustomerSurvey')
-            ->where([
-                'emailAddress' => $email,
-                'assignedUserId' => $assignedUserId,
-                'deleted' => false
-            ])
-            ->findOne();
-        
-        if ($encuesta) {
+
+    public function getActionGetComparacionOficinas($params, $data, $request)
+    {
+        try {
+            $claId = $request->get('claId');
+            
+            if (!$claId) {
+                return [
+                    'success' => false,
+                    'error' => 'ID de CLA no proporcionado'
+                ];
+            }
+            
+            $entityManager = $this->getContainer()->get('entityManager');
+            
+            // Obtener oficinas del CLA
+            $estadisticasOficinas = $this->obtenerEstadisticasPorOficina($entityManager, $claId);
+            
+            $resultados = [];
+            
+            foreach ($estadisticasOficinas as $oficina) {
+                // Convertir satisfacción promedio a porcentaje (5 = máximo)
+                $porcentaje = ($oficina['satisfaccionPromedio'] / 5) * 100;
+                
+                $resultados[] = [
+                    'id' => $oficina['id'] || '',
+                    'nombre' => $oficina['nombre'],
+                    'totalEncuestas' => $oficina['totalEncuestas'],
+                    'satisfaccionPromedio' => $oficina['satisfaccionPromedio'],
+                    'porcentaje' => round($porcentaje, 1)
+                ];
+            }
+            
             return [
-                'emailAddress' => $encuesta->get('emailAddress'),
-                'clientName' => $encuesta->get('clientName'),
-                'operationType' => $encuesta->get('operationType'),
-                'createdAt' => $encuesta->get('createdAt'),
-                'assignedUserId' => $encuesta->get('assignedUserId'),
-                'razon' => 'Mismo email y asesor'
+                'success' => true,
+                'data' => $resultados
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
             ];
         }
     }
-    
-    return null;
-}
+
+
+    public function getActionGetComentariosAsesor($params, $data, $request)
+    {
+        try {
+            $asesorId = $request->get('asesorId');
+            
+            if (!$asesorId) {
+                return [
+                    'success' => false,
+                    'error' => 'ID de asesor no proporcionado'
+                ];
+            }
+            
+            $entityManager = $this->getContainer()->get('entityManager');
+            
+            // ✅ OBTENER TODOS LOS ASESORES DEL CLA (para poder filtrar por usuario según permisos)
+            $user = $this->getContainer()->get('user');
+            $userId = $user->get('id');
+            
+            // Obtener roles del usuario
+            $roles = $this->getUserRoles($entityManager, $userId);
+            $esAdmin = $user->isAdmin();
+            $esCasaNac = $this->esCasaNacional($roles);
+            
+            // Validar permisos según rol
+            if (!$esAdmin && !$esCasaNac) {
+                // Usuario regular - solo puede ver sus propios comentarios
+                if ($asesorId !== $userId) {
+                    return [
+                        'success' => false,
+                        'error' => 'No tiene permisos para ver comentarios de este asesor',
+                        'comentarios' => []
+                    ];
+                }
+            }
+            
+            // ✅ ADAPTACIÓN: Obtener el CLA del asesor para validar que pertenezca al mismo CLA del usuario
+            if (!$esAdmin && $esCasaNac) {
+                // Si es Casa Nacional, puede ver todos los asesores de su mismo CLA
+                $userCLA = $this->getUserCLA($entityManager, $userId);
+                $asesorCLA = $this->getUserCLA($entityManager, $asesorId);
+                
+                if ($userCLA && $asesorCLA && $userCLA !== $asesorCLA) {
+                    return [
+                        'success' => false,
+                        'error' => 'Solo puede ver asesores de su mismo CLA',
+                        'comentarios' => []
+                    ];
+                }
+            }
+            
+            // Obtener encuestas del asesor con comentarios
+            $encuestas = $entityManager->getRepository('CCustomerSurvey')
+                ->where([
+                    'assignedUserId' => $asesorId,
+                    'additionalFeedback!=' => null,
+                    'additionalFeedback!=' => '',
+                    'deleted' => false,
+                    'estatus' => '2'
+                ])
+                ->order('createdAt', 'DESC')
+                ->find();
+            
+            $comentarios = [];
+            foreach ($encuestas as $encuesta) {
+                $comentario = trim($encuesta->get('additionalFeedback'));
+                if (!empty($comentario)) {
+                    $comentarios[] = [
+                        'clientName' => $encuesta->get('clientName') ?: 'Cliente Anónimo',
+                        'comentario' => $comentario,
+                        'operationType' => $encuesta->get('operationType'),
+                        'fecha' => $encuesta->get('createdAt') ? 
+                            date('d/m/Y', strtotime($encuesta->get('createdAt'))) : '',
+                        'calificacionGeneral' => $encuesta->get('generalAdvisorRating') ?: 'No calificada'
+                    ];
+                }
+            }
+            
+            return [
+                'success' => true,
+                'comentarios' => $comentarios,
+                'total' => count($comentarios)
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'comentarios' => []
+            ];
+        }
+    }
+
+    protected function getUserCLA($entityManager, $userId)
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            $sql = "SELECT t.id 
+                    FROM team t
+                    INNER JOIN team_user tu ON t.id = tu.team_id
+                    WHERE tu.user_id = :userId
+                    AND t.id LIKE 'CLA%'
+                    AND tu.deleted = 0
+                    AND t.deleted = 0
+                    LIMIT 1";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':userId', $userId);
+            $sth->execute();
+            
+            $row = $sth->fetch(\PDO::FETCH_ASSOC);
+            
+            return $row ? $row['id'] : null;
+            
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    protected function getUsuariosPorOficina($entityManager, $oficinaId)
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            $sql = "SELECT user_id 
+                    FROM team_user 
+                    WHERE team_id = :oficinaId 
+                    AND deleted = 0";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':oficinaId', $oficinaId);
+            $sth->execute();
+            
+            $userIds = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                $userIds[] = $row['user_id'];
+            }
+            
+            return $userIds;
+            
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    // ✅ FUNCIÓN AUXILIAR: Obtener nombre de usuario
+    protected function getNombreUsuario($entityManager, $userId)
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            $sql = "SELECT name FROM user WHERE id = :userId AND deleted = 0 LIMIT 1";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':userId', $userId);
+            $sth->execute();
+            
+            $row = $sth->fetch(\PDO::FETCH_ASSOC);
+            
+            return $row ? $row['name'] : 'Usuario #' . substr($userId, 0, 8);
+            
+        } catch (\Exception $e) {
+            return 'Usuario';
+        }
+    }
+
+    protected function obtenerEstadisticasAsesor($entityManager, $asesorId)
+    {
+        try {
+            $whereClause = [
+                'deleted' => false,
+                'estatus' => '2',
+                'assignedUserId' => $asesorId
+            ];
+            
+            // Total de encuestas
+            $totalEncuestas = $entityManager->getRepository('CCustomerSurvey')
+                ->where($whereClause)
+                ->count();
+            
+            if ($totalEncuestas === 0) {
+                return ['totalEncuestas' => 0];
+            }
+            
+            // Promedios por categoría
+            $camposCalificacion = [
+                'communicationEffectiveness',
+                'legalAdvice',
+                'businessKnowledge',
+                'personalPresentation',
+                'detailManagement',
+                'punctuality',
+                'commitmentLevel',
+                'problemSolving',
+                'fullSupport',
+                'unexpectedSituations',
+                'negotiationTiming',
+                'officeRating',
+                'generalAdvisorRating'
+            ];
+            
+            $promedios = [];
+            
+            foreach ($camposCalificacion as $campo) {
+                $encuestasConValor = $entityManager->getRepository('CCustomerSurvey')
+                    ->where(array_merge($whereClause, [
+                        $campo . '!=' => null,
+                        $campo . '!=' => ''
+                    ]))
+                    ->find();
+                
+                $suma = 0;
+                $contador = 0;
+                
+                foreach ($encuestasConValor as $encuesta) {
+                    $valor = $encuesta->get($campo);
+                    if ($valor !== null && $valor !== '') {
+                        $suma += (float)$valor;
+                        $contador++;
+                    }
+                }
+                
+                $promedios[$campo] = $contador > 0 ? round($suma / $contador, 1) : 0;
+            }
+            
+            return array_merge(
+                ['totalEncuestas' => $totalEncuestas],
+                $promedios
+            );
+            
+        } catch (\Exception $e) {
+            return ['totalEncuestas' => 0];
+        }
+    }
+
+    protected function getCLADeOficina($entityManager, $oficinaId)
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            // Buscar usuarios de la oficina y ver a qué CLA pertenecen
+            $sql = "SELECT DISTINCT t2.id 
+                    FROM team_user tu1
+                    INNER JOIN team_user tu2 ON tu1.user_id = tu2.user_id
+                    INNER JOIN team t2 ON tu2.team_id = t2.id
+                    WHERE tu1.team_id = :oficinaId
+                    AND t2.id LIKE 'CLA%'
+                    AND tu1.deleted = 0
+                    AND tu2.deleted = 0
+                    AND t2.deleted = 0
+                    LIMIT 1";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':oficinaId', $oficinaId);
+            $sth->execute();
+            
+            $row = $sth->fetch(\PDO::FETCH_ASSOC);
+            
+            return $row ? $row['id'] : null;
+            
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+
+
+
 
     
 

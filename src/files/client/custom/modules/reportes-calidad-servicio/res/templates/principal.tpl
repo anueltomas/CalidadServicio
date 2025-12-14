@@ -23,10 +23,48 @@
                         <option value="">Seleccione un CLA primero</option>
                     </select>
                 </div>
+                <div class="filter-group">
+                    <label for="asesor-select">👤 Asesor</label>
+                    <select id="asesor-select" class="form-control" disabled>
+                        <option value="">Seleccione una oficina primero</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- ✅ NUEVO: Botones de comparación -->
+            <div class="comparison-buttons" style="margin-top: 20px; display: flex; gap: 15px; flex-wrap: wrap;">
+                <button id="btn-comparar-asesores" class="btn-comparison" style="
+                    display: none;
+                    background: linear-gradient(135deg, #B8A279 0%, #D4C19C 100%);
+                    color: white;
+                    border: none;
+                    padding: 12px 24px;
+                    border-radius: 6px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 2px 8px rgba(184, 162, 121, 0.3);
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(184, 162, 121, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(184, 162, 121, 0.3)';">
+                    <i class="fas fa-chart-bar"></i> Comparar Asesores de la Oficina
+                </button>
+                
+                <button id="btn-comparar-oficinas" class="btn-comparison" style="
+                    display: none;
+                    background: linear-gradient(135deg, #666666 0%, #999999 100%);
+                    color: white;
+                    border: none;
+                    padding: 12px 24px;
+                    border-radius: 6px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 2px 8px rgba(102, 102, 102, 0.3);
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 102, 102, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(102, 102, 102, 0.3)';">
+                    <i class="fas fa-building"></i> Comparar Oficinas del CLA
+                </button>
             </div>
         </div>
     </div>
-
     
     {{#if esAdmin}}
     <div class="file-input-section panel panel-default">
@@ -911,5 +949,122 @@ BOTON DE IMPORT Y REFRESCAR
 /* Mejoras visuales para los gráficos */
 .chartjs-render-monitor {
     border-radius: 8px;
+}
+
+
+/* Agrega esto al final del estilo CSS existente */
+
+/* ===================================
+   ESTILOS PARA PAGINACIÓN DE COMENTARIOS
+   =================================== */
+.paginacion-comentarios {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.boton-pagina {
+    background: white;
+    color: #666666;
+    border: 2px solid #e9ecef;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.boton-pagina:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.boton-pagina.activa {
+    background: #B8A279;
+    color: white;
+    border-color: #B8A279;
+}
+
+.boton-navegacion {
+    background: #B8A279;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.boton-navegacion:hover:not(:disabled) {
+    background: #9D8B5F;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(154, 140, 95, 0.3);
+}
+
+.boton-navegacion:disabled {
+    background: #e9ecef;
+    color: #95a5a6;
+    cursor: not-allowed;
+}
+
+/* ===================================
+   ESTILOS PARA VENTANAS DE COMPARACIÓN
+   =================================== */
+.ventana-comparacion {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Estilos para la tabla de comparación */
+.tabla-comparacion tr:hover {
+    background-color: rgba(184, 162, 121, 0.05);
+}
+
+/* Estilos para gráficos en ventanas de comparación */
+.grafico-comparacion {
+    max-height: 600px !important;
+}
+
+/* ===================================
+   RESPONSIVE PARA PAGINACIÓN
+   =================================== */
+@media (max-width: 768px) {
+    .paginacion-comentarios {
+        flex-wrap: wrap;
+        padding: 15px;
+    }
+    
+    .boton-pagina {
+        width: 30px;
+        height: 30px;
+        font-size: 12px;
+    }
+    
+    .boton-navegacion {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    
+    .ventana-comparacion .tabla-comparacion {
+        font-size: 12px;
+    }
 }
 </style>

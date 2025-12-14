@@ -4,6 +4,21 @@
             "route": "reportes-calidad-servicio",
             "controller": "reportesCalidadServicio",
             "action": "index"
+        },
+        {
+            "route": "CCustomerSurvey/comparacion-asesores",
+            "controller": "reportesCalidadServicio",
+            "action": "comparacionAsesores"
+        },
+        {
+            "route": "reporte-calidad-servicio/comparacionOficinas",
+            "controller": "reportesCalidadServicio",
+            "action": "comparacionOficinas"
+        },
+        {
+            "route": "reportes-calidad-servicio/test-simple",
+            "controller": "reportesCalidadServicio",
+            "action": "testSimple"
         }
     ]
 }

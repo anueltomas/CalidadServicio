@@ -290,13 +290,36 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                 function (e) {
                     var oficinaId = $(e.currentTarget).val();
 
+                    var btnComparacionAsesores = this.view.$el.find(
+                        "#btn-comparar-asesores"
+                    );
+                    var btnComparacionOficinas = this.view.$el.find(
+                        "#btn-comparar-oficinas"
+                    );
+
+                    if (oficinaId) {
+                        btnComparacionAsesores.show();
+                        btnComparacionOficinas.show(); // Mantener visible
+                    } else {
+                        btnComparacionAsesores.hide();
+                    }
+
                     if (
                         this.view.filtrosCLAManager &&
                         this.view.filtrosCLAManager.filtros
                     ) {
                         this.view.filtrosCLAManager.filtros.oficina =
                             oficinaId || null;
+                        this.view.filtrosCLAManager.filtros.asesor = null;
                         this.view.filtrosCLAManager.filtros.mostrarTodas = false;
+
+                        if (oficinaId && this.view.filtrosAsesoresManager) {
+                            this.view.filtrosAsesoresManager.loadAsesores(
+                                oficinaId
+                            );
+                        } else if (this.view.filtrosAsesoresManager) {
+                            this.view.filtrosAsesoresManager.limpiarFiltros();
+                        }
 
                         if (this.view.estadisticasManager) {
                             this.view.estadisticasManager.loadStatistics();

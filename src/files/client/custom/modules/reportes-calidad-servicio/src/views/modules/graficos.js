@@ -4,6 +4,144 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
         this.charts = {};
     };
 
+    GraficosManager.prototype.renderGraficoComparacion = function (config) {
+        if (typeof Chart === "undefined") {
+            console.error("Chart.js no está cargado");
+            return;
+        }
+
+        var ctx = document.getElementById("chart-comparacion-" + config.tipo);
+        if (!ctx) return;
+
+        // Destruir gráfico anterior si existe
+        if (this.charts["comparacion_" + config.tipo]) {
+            this.charts["comparacion_" + config.tipo].destroy();
+        }
+
+        // Ordenar datos
+        var datosOrdenados = config.data.sort(function (a, b) {
+            return b.porcentaje - a.porcentaje;
+        });
+
+        var labels = datosOrdenados.map(function (item) {
+            var nombre = item.nombre || item.id || "Sin nombre";
+            // Truncar nombres largos
+            return nombre.length > 30
+                ? nombre.substring(0, 30) + "..."
+                : nombre;
+        });
+
+        var data = datosOrdenados.map(function (item) {
+            return item.porcentaje || 0;
+        });
+
+        // Colores basados en porcentaje
+        var backgroundColors = data.map(function (porcentaje) {
+            if (porcentaje >= 80) return "#9D8B64"; // Excelente
+            if (porcentaje >= 70) return "#A89968"; // Muy bueno
+            if (porcentaje >= 60) return "#B8A279"; // Bueno
+            if (porcentaje >= 50) return "#999999"; // Regular
+            return "#666666"; // Deficiente
+        });
+
+        try {
+            this.charts["comparacion_" + config.tipo] = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label:
+                                config.tipo === "asesores"
+                                    ? "Desempeño del Asesor"
+                                    : "Evaluación de la Oficina",
+                            data: data,
+                            backgroundColor: backgroundColors,
+                            borderWidth: 0,
+                            borderRadius: 6,
+                        },
+                    ],
+                },
+                options: {
+                    indexAxis: "y",
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    var item =
+                                        datosOrdenados[context.dataIndex];
+                                    var encuestas = item.totalEncuestas || 0;
+                                    var promedio =
+                                        config.tipo === "asesores"
+                                            ? (
+                                                  item.promedioGeneral || 0
+                                              ).toFixed(2)
+                                            : (
+                                                  item.satisfaccionPromedio || 0
+                                              ).toFixed(2);
+
+                                    return [
+                                        "Desempeño: " +
+                                            context.parsed.x.toFixed(1) +
+                                            "%",
+                                        "Encuestas: " + encuestas,
+                                        "Promedio: " + promedio,
+                                    ];
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: {
+                                color: "#E6E6E6",
+                            },
+                            ticks: {
+                                callback: function (value) {
+                                    return value + "%";
+                                },
+                                font: {
+                                    size: 12,
+                                },
+                            },
+                            title: {
+                                display: true,
+                                text: "Porcentaje de Desempeño",
+                                font: {
+                                    size: 14,
+                                    weight: "bold",
+                                },
+                            },
+                        },
+                        y: {
+                            grid: {
+                                display: false,
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11,
+                                },
+                                callback: function (value, index) {
+                                    var item = datosOrdenados[index];
+                                    return item.nombre || item.id || "";
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        } catch (error) {
+            console.error("Error renderizando gráfico de comparación:", error);
+        }
+    };
+
     GraficosManager.prototype.registrarPluginsChart = function () {
         if (typeof Chart === "undefined") return;
 
@@ -1357,4 +1495,142 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
     };
 
     return GraficosManager;
+
+    window.renderizarGraficoComparacion = function (config) {
+        if (typeof Chart === "undefined") {
+            console.error("Chart.js no está cargado");
+            return;
+        }
+
+        var ctx = document.getElementById("chart-comparacion-" + config.tipo);
+        if (!ctx) return;
+
+        // Destruir gráfico anterior si existe
+        if (window.comparacionChart) {
+            window.comparacionChart.destroy();
+        }
+
+        // Ordenar datos
+        var datosOrdenados = config.data.sort(function (a, b) {
+            return b.porcentaje - a.porcentaje;
+        });
+
+        var labels = datosOrdenados.map(function (item) {
+            var nombre = item.nombre || item.id || "Sin nombre";
+            // Truncar nombres largos
+            return nombre.length > 30
+                ? nombre.substring(0, 30) + "..."
+                : nombre;
+        });
+
+        var data = datosOrdenados.map(function (item) {
+            return item.porcentaje || 0;
+        });
+
+        // Colores basados en porcentaje
+        var backgroundColors = data.map(function (porcentaje) {
+            if (porcentaje >= 80) return "#9D8B64"; // Excelente
+            if (porcentaje >= 70) return "#A89968"; // Muy bueno
+            if (porcentaje >= 60) return "#B8A279"; // Bueno
+            if (porcentaje >= 50) return "#999999"; // Regular
+            return "#666666"; // Deficiente
+        });
+
+        try {
+            window.comparacionChart = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label:
+                                config.tipo === "asesores"
+                                    ? "Desempeño del Asesor"
+                                    : "Evaluación de la Oficina",
+                            data: data,
+                            backgroundColor: backgroundColors,
+                            borderWidth: 0,
+                            borderRadius: 6,
+                        },
+                    ],
+                },
+                options: {
+                    indexAxis: "y",
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    var item =
+                                        datosOrdenados[context.dataIndex];
+                                    var encuestas = item.totalEncuestas || 0;
+                                    var promedio =
+                                        config.tipo === "asesores"
+                                            ? (
+                                                  item.promedioGeneral || 0
+                                              ).toFixed(2)
+                                            : (
+                                                  item.satisfaccionPromedio || 0
+                                              ).toFixed(2);
+
+                                    return [
+                                        "Desempeño: " +
+                                            context.parsed.x.toFixed(1) +
+                                            "%",
+                                        "Encuestas: " + encuestas,
+                                        "Promedio: " + promedio,
+                                    ];
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: {
+                                color: "#E6E6E6",
+                            },
+                            ticks: {
+                                callback: function (value) {
+                                    return value + "%";
+                                },
+                                font: {
+                                    size: 12,
+                                },
+                            },
+                            title: {
+                                display: true,
+                                text: "Porcentaje de Desempeño",
+                                font: {
+                                    size: 14,
+                                    weight: "bold",
+                                },
+                            },
+                        },
+                        y: {
+                            grid: {
+                                display: false,
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11,
+                                },
+                                callback: function (value, index) {
+                                    var item = datosOrdenados[index];
+                                    return item.nombre || item.id || "";
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        } catch (error) {
+            console.error("Error renderizando gráfico de comparación:", error);
+        }
+    };
 });
