@@ -7,7 +7,6 @@
             </h3>
         </div>
     </div>
-
     <div class="filter-section panel panel-default">
         <div class="panel-body">
             <div class="filters-container">

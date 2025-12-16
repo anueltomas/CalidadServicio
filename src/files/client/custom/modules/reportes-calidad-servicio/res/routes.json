@@ -1,24 +1,26 @@
 {
     "routes": [
         {
-            "route": "reportes-calidad-servicio",
-            "controller": "reportesCalidadServicio",
-            "action": "index"
+            "route": "Principal",
+            "params": {
+                "controller": "principal",
+                "action": "index"
+            }
         },
         {
-            "route": "CCustomerSurvey/comparacion-asesores",
-            "controller": "reportesCalidadServicio",
-            "action": "comparacionAsesores"
+            "route": "Oficinas/:claId",
+            "params": {
+                "controller": "principal",
+                "action": "compararOficinas",
+                "claId": ":claId"
+            }
         },
         {
-            "route": "reporte-calidad-servicio/comparacionOficinas",
-            "controller": "reportesCalidadServicio",
-            "action": "comparacionOficinas"
-        },
-        {
-            "route": "reportes-calidad-servicio/test-simple",
-            "controller": "reportesCalidadServicio",
-            "action": "testSimple"
+            "route": "ReportesCalidadServicio/Prueba",
+            "params": {
+                "controller": "principal",
+                "action": "prueba"
+            }
         }
     ]
 }

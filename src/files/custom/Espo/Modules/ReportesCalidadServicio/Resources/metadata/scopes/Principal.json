@@ -9,7 +9,7 @@
     "stream": false,
     "disabled": false,
     "type": "Base",
-    "module": "CalidadServicio",
+    "module": "ReportesCalidadServicio",
     "object": true,
     "isCustom": true
 }

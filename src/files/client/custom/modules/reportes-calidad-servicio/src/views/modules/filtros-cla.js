@@ -140,7 +140,9 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                     oficinaSelect.val("");
 
                     if (claId) {
-                        btnComparacionOficinas.show();
+                        btnComparacionOficinas
+                            .show()
+                            .css("display", "inline-flex");
                         if (
                             this.view.filtrosOficinasManager &&
                             this.view.filtrosOficinasManager.loadOficinas
