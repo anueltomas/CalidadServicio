@@ -4,12 +4,11 @@
     "tab": true,
     "acl": true,
     "customizable": true,
-    "importable": false,
+    "importable": true,
     "notifications": false,
-    "stream": false,
-    "disabled": false,
-    "type": "Base",
-    "module": "ReportesCalidadServicio",
-    "object": true,
-    "isCustom": true
+    "object": false,
+    "hasPersonalData": false,
+    "controller": "ReportesCalidadServicio",
+    "service": "ReportesCalidadServicio",
+    "module": "ReportesCalidadServicio"
 }

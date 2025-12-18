@@ -138,6 +138,8 @@ define("reportes-calidad-servicio:views/principal", [
                 mostrarTodas: true,
             };
 
+            this.filtrosGuardados = null; // Para restaurar filtros al volver
+
             try {
                 this.importadorCSV.initMappings();
             } catch (error) {}
@@ -186,11 +188,6 @@ define("reportes-calidad-servicio:views/principal", [
                 );
         },
 
-        afterRender: function () {
-            this.showLoadingState();
-            this.setupEventListeners();
-        },
-
         setupEventListeners: function () {
             const fileInput = this.$el.find("#csv-file-input")[0];
             const fileName = this.$el.find("#file-name")[0];
@@ -229,10 +226,61 @@ define("reportes-calidad-servicio:views/principal", [
             this.setupCompararOficinasListener();
         },
 
+        afterRender: function () {
+            this.showLoadingState();
+            this.setupEventListeners();
+
+            this.setupCompararOficinasListener();
+            this.setupCompararAsesoresListener();
+
+            // ✅ NUEVO: Restaurar filtros si existen
+            if (this.filtrosGuardados) {
+                setTimeout(() => {
+                    this.restaurarFiltros();
+                }, 500); // Esperar a que se carguen los selects
+            }
+        },
+
+        // ✅ NUEVO MÉTODO: Restaurar filtros guardados
+        restaurarFiltros: function () {
+            if (!this.filtrosGuardados) return;
+
+            console.log("🔄 Restaurando filtros:", this.filtrosGuardados);
+
+            const selectCLA = this.$el.find("#cla-select");
+            const selectOficina = this.$el.find("#oficina-select");
+            const selectAsesor = this.$el.find("#asesor-select");
+
+            // Restaurar CLA
+            if (this.filtrosGuardados.cla) {
+                selectCLA.val(this.filtrosGuardados.cla).trigger("change");
+
+                // Esperar a que se carguen las oficinas
+                setTimeout(() => {
+                    if (this.filtrosGuardados.oficina) {
+                        selectOficina
+                            .val(this.filtrosGuardados.oficina)
+                            .trigger("change");
+
+                        // Esperar a que se carguen los asesores
+                        setTimeout(() => {
+                            if (this.filtrosGuardados.asesor) {
+                                selectAsesor
+                                    .val(this.filtrosGuardados.asesor)
+                                    .trigger("change");
+                            }
+                        }, 400);
+                    }
+                }, 400);
+            }
+
+            // Limpiar filtros guardados después de restaurar
+            // this.filtrosGuardados = null; // ✅ OPCIONAL: Descomentar si solo quieres restaurar una vez
+        },
+
         setupCompararOficinasListener: function () {
             const self = this;
 
-            // ✅ CORRECCIÓN: No usar setTimeout, usar waitFor para asegurar que el DOM esté listo
             const btnComparar = this.$el.find("#btn-comparar-oficinas");
             const selectCLA = this.$el.find("#cla-select");
 
@@ -251,11 +299,14 @@ define("reportes-calidad-servicio:views/principal", [
                         claId
                     );
 
-                    // ✅ CORRECCIÓN: Usar getRouter correctamente
                     try {
-                        self.getRouter().navigate("#Oficinas/" + claId, {
-                            trigger: true,
-                        });
+                        // ✅ CORREGIDO: Usar una ruta absoluta que se mantenga al refrescar
+                        self.getRouter().navigate(
+                            "#Principal/oficinas/" + claId,
+                            {
+                                trigger: true,
+                            }
+                        );
                     } catch (error) {
                         console.error("❌ Error en navegación:", error);
                         Espo.Ui.error(
@@ -267,6 +318,61 @@ define("reportes-calidad-servicio:views/principal", [
                 console.warn(
                     "⚠️ No se encontraron elementos de comparación de oficinas"
                 );
+            }
+        },
+
+        setupCompararAsesoresListener: function () {
+            const self = this;
+
+            const btnComparar = this.$el.find("#btn-comparar-asesores");
+            const selectOficina = this.$el.find("#oficina-select");
+            const selectCLA = this.$el.find("#cla-select");
+
+            if (
+                btnComparar.length &&
+                selectOficina.length &&
+                selectCLA.length
+            ) {
+                btnComparar.off("click").on("click", function () {
+                    const oficinaId = selectOficina.val();
+                    const oficinaNombre = selectOficina
+                        .find("option:selected")
+                        .text();
+                    const claId = selectCLA.val();
+
+                    // ✅ Validaciones
+                    if (!oficinaId) {
+                        Espo.Ui.warning("Por favor, selecciona una oficina");
+                        return;
+                    }
+
+                    if (claId === "CLA0" || claId === "") {
+                        Espo.Ui.warning(
+                            "No puedes comparar asesores con Territorio Nacional seleccionado"
+                        );
+                        return;
+                    }
+
+                    console.log(
+                        "👥 Navegando a comparación de asesores - Oficina:",
+                        oficinaId
+                    );
+
+                    try {
+                        // ✅ Usar la ruta correcta para asesores
+                        self.getRouter().navigate(
+                            "#Principal/asesores/" + oficinaId,
+                            {
+                                trigger: true,
+                            }
+                        );
+                    } catch (error) {
+                        console.error("❌ Error en navegación:", error);
+                        Espo.Ui.error(
+                            "No se pudo navegar a la vista de comparación de asesores."
+                        );
+                    }
+                });
             }
         },
 

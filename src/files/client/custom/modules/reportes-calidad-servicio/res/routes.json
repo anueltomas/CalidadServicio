@@ -8,18 +8,27 @@
             }
         },
         {
-            "route": "Oficinas/:claId",
+            "route": "Principal/oficinas/:claId?",
             "params": {
                 "controller": "principal",
-                "action": "compararOficinas",
+                "action": "oficinas",
                 "claId": ":claId"
             }
         },
         {
-            "route": "ReportesCalidadServicio/Prueba",
+            "route": "Principal/asesores/:oficinaId?",
             "params": {
                 "controller": "principal",
-                "action": "prueba"
+                "action": "asesores",
+                "oficinaId": ":oficinaId"
+            }
+        },
+        {
+            "route": "Principal/estadisticas-asesor/:asesorId?",
+            "params": {
+                "controller": "principal",
+                "action": "estadisticasAsesor",
+                "asesorId": ":asesorId"
             }
         }
     ]

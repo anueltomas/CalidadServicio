@@ -4,6 +4,7 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
         this.filtros = {
             cla: null,
             oficina: null,
+            asesor: null, // ✅ AGREGAR
             mostrarTodas: true,
         };
         this.allTeams = {
@@ -31,7 +32,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                     function () {
                         this.procesarTeams(collection);
                         this.populateCLASelect();
-
                         this.view.estadisticasManager.loadStatistics();
                     }.bind(this)
                 );
@@ -85,7 +85,7 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
         if (cla0) {
             claSelect.append(
                 $("<option></option>")
-                    .val("")
+                    .val("CLA0") // ✅ CAMBIO: Usar "CLA0" en lugar de ""
                     .text("Territorio Nacional")
                     .prop("selected", true)
             );
@@ -96,7 +96,7 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
         } else {
             claSelect.append(
                 $("<option></option>")
-                    .val("")
+                    .val("") // Sin CLA0, usar vacío
                     .text("Territorio Nacional")
                     .prop("selected", true)
             );
@@ -124,11 +124,13 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                 function (e) {
                     var claId = $(e.currentTarget).val();
 
+                    // ✅ Actualizar filtros
                     this.filtros.cla = claId || null;
                     this.filtros.oficina = null;
                     this.filtros.asesor = null;
-                    this.filtros.mostrarTodas = !claId;
+                    this.filtros.mostrarTodas = !claId || claId === "CLA0";
 
+                    // ✅ Obtener botones
                     var btnComparacionOficinas = this.view.$el.find(
                         "#btn-comparar-oficinas"
                     );
@@ -137,12 +139,19 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                     );
 
                     var oficinaSelect = this.view.$el.find("#oficina-select");
-                    oficinaSelect.val("");
+                    var asesorSelect = this.view.$el.find("#asesor-select");
 
-                    if (claId) {
+                    // Limpiar selects dependientes
+                    oficinaSelect.val("");
+                    asesorSelect.val("");
+
+                    // ✅ Lógica de visibilidad de botones
+                    if (claId && claId !== "CLA0") {
+                        // CLA específico seleccionado
                         btnComparacionOficinas
                             .show()
                             .css("display", "inline-flex");
+
                         if (
                             this.view.filtrosOficinasManager &&
                             this.view.filtrosOficinasManager.loadOficinas
@@ -152,19 +161,68 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                             );
                         }
                     } else {
+                        // Territorio Nacional o vacío
                         btnComparacionOficinas.hide();
+
                         oficinaSelect.empty();
                         oficinaSelect.append(
                             '<option value="">Seleccione un CLA primero</option>'
                         );
                         oficinaSelect.prop("disabled", true);
                     }
+
+                    // ✅ Siempre ocultar botón de asesores al cambiar CLA
                     btnComparacionAsesores.hide();
+
+                    // Limpiar select de asesores
+                    if (this.view.filtrosAsesoresManager) {
+                        this.view.filtrosAsesoresManager.limpiarFiltros();
+                    }
+
+                    // Recargar estadísticas
                     this.view.estadisticasManager.loadStatistics();
                 }.bind(this)
             );
         }
+
+        // ✅ NUEVO: Configurar evento del botón de comparar oficinas
+        this.setupComparacionOficinas();
     };
+
+    // ✅ NUEVO MÉTODO: Configurar botón de comparación de oficinas
+    FiltrosCLAManager.prototype.setupComparacionOficinas = function () {
+        var self = this;
+        var btnComparar = this.view.$el.find("#btn-comparar-oficinas");
+        var selectCLA = this.view.$el.find("#cla-select");
+
+        btnComparar.off("click").on("click", function () {
+            var claId = selectCLA.val();
+            var claNombre = selectCLA.find("option:selected").text();
+
+            // ✅ Validar que no sea Territorio Nacional
+            if (!claId || claId === "CLA0" || claId === "") {
+                Espo.Ui.warning(
+                    "Por favor, selecciona un CLA específico (no Territorio Nacional)"
+                );
+                return;
+            }
+
+            console.log("🏢 Navegando a comparación de oficinas - CLA:", claId);
+
+            // ✅ Guardar estado actual de filtros
+            self.view.filtrosGuardados = {
+                cla: claId,
+                oficina: self.view.$el.find("#oficina-select").val(),
+                asesor: self.view.$el.find("#asesor-select").val(),
+            };
+
+            // ✅ Navegar a la vista de comparación
+            self.view
+                .getRouter()
+                .navigate("#Oficinas/" + claId, { trigger: true });
+        });
+    };
+
     FiltrosCLAManager.prototype.getFiltros = function () {
         return this.filtros;
     };

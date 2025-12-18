@@ -745,11 +745,13 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                     'assignedUserId' => $oficinaUserIds
                 ];
                 
+                // Total de encuestas
                 $totalEncuestas = $entityManager->getRepository('CCustomerSurvey')
                     ->where($whereClause)
                     ->count();
                 
                 if ($totalEncuestas > 0) {
+                    // Satisfacción promedio
                     $encuestasConRating = $entityManager->getRepository('CCustomerSurvey')
                         ->where(array_merge($whereClause, ['generalAdvisorRating!=' => null]))
                         ->find();
@@ -767,10 +769,20 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                     
                     $satisfaccionPromedio = $contadorRatings > 0 ? round($sumaRatings / $contadorRatings, 1) : 0;
                     
+                    // ✅ NUEVO: Porcentaje de recomendación
+                    $totalRecomiendan = $entityManager->getRepository('CCustomerSurvey')
+                        ->where(array_merge($whereClause, ['recommendation' => '1']))
+                        ->count();
+                    
+                    $porcentajeRecomendacion = $totalEncuestas > 0 ? 
+                        round(($totalRecomiendan / $totalEncuestas) * 100, 1) : 0;
+                    
                     $estadisticasOficinas[] = [
+                        'id' => $oficina['id'],
                         'nombre' => $oficina['name'],
                         'totalEncuestas' => $totalEncuestas,
-                        'satisfaccionPromedio' => $satisfaccionPromedio
+                        'satisfaccionPromedio' => $satisfaccionPromedio,
+                        'porcentajeRecomendacion' => $porcentajeRecomendacion // ✅ NUEVO
                     ];
                 }
             }
@@ -1042,86 +1054,73 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             }
             
             $entityManager = $this->getContainer()->get('entityManager');
+            $userRepository = $entityManager->getRepository('User');
             
-            // ✅ VALIDAR PERMISOS
-            $user = $this->getContainer()->get('user');
-            $userId = $user->get('id');
-            $esAdmin = $user->isAdmin();
+            // Obtener usuarios de la oficina usando team_user
+            $pdo = $entityManager->getPDO();
             
-            // Verificar que el usuario tenga acceso a esta oficina
-            if (!$esAdmin) {
-                $userTeams = $this->getUserTeams($entityManager, $userId);
-                $userTeamIds = array_column($userTeams, 'id');
-                
-                // Si el usuario no pertenece a la oficina, verificar si pertenece al CLA padre
-                if (!in_array($oficinaId, $userTeamIds)) {
-                    $oficinaCLA = $this->getCLADeOficina($entityManager, $oficinaId);
-                    $userCLA = $this->getUserCLA($entityManager, $userId);
-                    
-                    if (!$oficinaCLA || $oficinaCLA !== $userCLA) {
-                        return [
-                            'success' => false,
-                            'error' => 'No tiene permisos para ver esta oficina',
-                            'data' => []
-                        ];
-                    }
-                }
+            $sql = "SELECT user_id FROM team_user WHERE team_id = :oficinaId AND deleted = 0";
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':oficinaId', $oficinaId);
+            $sth->execute();
+            
+            $userIds = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                $userIds[] = $row['user_id'];
             }
             
-            // Obtener usuarios de la oficina usando getUserIdsByTeam
-            $usuarios = $this->getUserIdsByTeam($entityManager, $oficinaId);
-            
-            if (empty($usuarios)) {
+            if (empty($userIds)) {
                 return [
                     'success' => true,
                     'data' => [],
+                    'oficinaInfo' => $this->getOficinaInfo($entityManager, $oficinaId), // ✅ NUEVO
                     'message' => 'No hay asesores en esta oficina'
                 ];
             }
             
             $resultados = [];
             
-            foreach ($usuarios as $usuarioId) {
-                $stats = $this->obtenerEstadisticasAsesor($entityManager, $usuarioId);
-                
-                if ($stats['totalEncuestas'] > 0) {
-                    // Calcular porcentaje de desempeño
-                    $sumaCalificaciones = 0;
-                    $contador = 0;
+            foreach ($userIds as $userId) {
+                try {
+                    $user = $userRepository->where([
+                        'id' => $userId,
+                        'deleted' => false,
+                        'isActive' => true
+                    ])->findOne();
                     
-                    $camposCalificacion = [
-                        'communicationEffectiveness',
-                        'legalAdvice',
-                        'businessKnowledge',
-                        'personalPresentation',
-                        'detailManagement',
-                        'punctuality',
-                        'commitmentLevel',
-                        'problemSolving',
-                        'fullSupport',
-                        'unexpectedSituations',
-                        'negotiationTiming',
-                        'generalAdvisorRating'
-                    ];
+                    if (!$user) {
+                        continue;
+                    }
                     
-                    foreach ($camposCalificacion as $campo) {
-                        if (isset($stats[$campo]) && $stats[$campo] > 0) {
-                            $sumaCalificaciones += $stats[$campo];
-                            $contador++;
+                    $nombre = $user->get('name');
+                    
+                    if (empty($nombre) || trim($nombre) === '') {
+                        $firstName = $user->get('firstName') ?? '';
+                        $lastName = $user->get('lastName') ?? '';
+                        $nombre = trim($firstName . ' ' . $lastName);
+                        
+                        if (empty($nombre)) {
+                            $nombre = $user->get('userName') ?? 'Usuario';
                         }
                     }
                     
-                    $promedioGeneral = $contador > 0 ? ($sumaCalificaciones / $contador) : 0;
-                    $porcentaje = ($promedioGeneral / 5) * 100; // Convertir a porcentaje (5 = máximo)
+                    $stats = $this->obtenerEstadisticasAsesor($entityManager, $userId);
                     
-                    // Solo incluir asesores con al menos 1 encuesta
-                    $resultados[] = [
-                        'id' => $usuarioId,
-                        'nombre' => $this->getNombreUsuario($entityManager, $usuarioId),
-                        'totalEncuestas' => $stats['totalEncuestas'],
-                        'promedioGeneral' => round($promedioGeneral, 2),
-                        'porcentaje' => round($porcentaje, 1)
-                    ];
+                    if ($stats['totalEncuestas'] > 0) {
+                        $promedio = $this->calcularPromedioAsesor($stats);
+                        $porcentaje = ($promedio / 5) * 100;
+                        
+                        $resultados[] = [
+                            'id' => $userId,
+                            'nombre' => $nombre,
+                            'totalEncuestas' => $stats['totalEncuestas'],
+                            'promedioGeneral' => round($promedio, 2),
+                            'porcentaje' => round($porcentaje, 1)
+                        ];
+                    }
+                    
+                } catch (\Exception $e) {
+                    continue;
                 }
             }
             
@@ -1133,6 +1132,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             return [
                 'success' => true,
                 'data' => $resultados,
+                'oficinaInfo' => $this->getOficinaInfo($entityManager, $oficinaId), // ✅ NUEVO
                 'totalAsesores' => count($resultados)
             ];
             
@@ -1141,6 +1141,136 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 'success' => false,
                 'error' => $e->getMessage(),
                 'data' => []
+            ];
+        }
+    }
+
+    protected function getAsesoresConNombres($entityManager, $oficinaId)
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            $sql = "SELECT 
+                        u.id,
+                        u.name as nombre,
+                        u.first_name as nombre_pila,
+                        u.last_name as apellido,
+                        u.user_name as usuario,
+                        u.email_address as email
+                    FROM user u
+                    INNER JOIN team_user tu ON u.id = tu.user_id
+                    WHERE tu.team_id = :oficinaId 
+                    AND u.deleted = 0 
+                    AND u.is_active = 1
+                    AND tu.deleted = 0
+                    ORDER BY u.name, u.first_name, u.last_name";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':oficinaId', $oficinaId);
+            $sth->execute();
+            
+            $asesores = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                // ✅ Construir nombre completo
+                $nombreCompleto = '';
+                
+                if (!empty($row['nombre'])) {
+                    $nombreCompleto = $row['nombre'];
+                } else if (!empty($row['nombre_pila']) || !empty($row['apellido'])) {
+                    $nombreCompleto = trim($row['nombre_pila'] . ' ' . $row['apellido']);
+                } else if (!empty($row['usuario'])) {
+                    $nombreCompleto = $row['usuario'];
+                } else {
+                    $nombreCompleto = 'Asesor #' . substr($row['id'], 0, 8);
+                }
+                
+                $asesores[] = [
+                    'id' => $row['id'],
+                    'nombre' => $nombreCompleto,
+                    'nombre_pila' => $row['nombre_pila'] ?? '',
+                    'apellido' => $row['apellido'] ?? '',
+                    'usuario' => $row['usuario'] ?? '',
+                    'email' => $row['email'] ?? ''
+                ];
+            }
+            
+            return $asesores;
+            
+        } catch (\Exception $e) {
+            // ✅ LOG del error
+            $GLOBALS['log']->error('Error al obtener asesores: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    protected function calcularPromedioAsesor($stats)
+    {
+        $sumaCalificaciones = 0;
+        $contador = 0;
+        
+        $camposCalificacion = [
+            'communicationEffectiveness',
+            'legalAdvice',
+            'businessKnowledge',
+            'personalPresentation',
+            'detailManagement',
+            'punctuality',
+            'commitmentLevel',
+            'problemSolving',
+            'fullSupport',
+            'unexpectedSituations',
+            'negotiationTiming',
+            'generalAdvisorRating'
+        ];
+        
+        foreach ($camposCalificacion as $campo) {
+            if (isset($stats[$campo]) && $stats[$campo] > 0) {
+                $sumaCalificaciones += $stats[$campo];
+                $contador++;
+            }
+        }
+        
+        return $contador > 0 ? ($sumaCalificaciones / $contador) : 0;
+    }
+
+    protected function getOficinaInfo($entityManager, $oficinaId)
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            // Nombre oficina
+            $sql = "SELECT name FROM team WHERE id = :oficinaId AND deleted = 0 LIMIT 1";
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':oficinaId', $oficinaId);
+            $sth->execute();
+            $oficina = $sth->fetch(\PDO::FETCH_ASSOC);
+            
+            $nombreOficina = $oficina ? $oficina['name'] : '';
+            
+            // CLA
+            $claId = $this->getCLADeOficina($entityManager, $oficinaId);
+            
+            $nombreCla = '';
+            if ($claId) {
+                $sql = "SELECT name FROM team WHERE id = :claId AND deleted = 0 LIMIT 1";
+                $sth = $pdo->prepare($sql);
+                $sth->bindValue(':claId', $claId);
+                $sth->execute();
+                $cla = $sth->fetch(\PDO::FETCH_ASSOC);
+                $nombreCla = $cla ? $cla['name'] : '';
+            }
+            
+            return [
+                'nombre' => $nombreOficina,
+                'cla' => $nombreCla,
+                'claId' => $claId
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'nombre' => '',
+                'cla' => '',
+                'claId' => null
             ];
         }
     }
@@ -1165,15 +1295,19 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             $resultados = [];
             
             foreach ($estadisticasOficinas as $oficina) {
+                // ✅ CORREGIDO: Obtener también el porcentaje de recomendación para cada oficina
+                $recomendacionStats = $this->obtenerRecomendacionPorOficina($entityManager, $oficina['id']);
+                
                 // Convertir satisfacción promedio a porcentaje (5 = máximo)
                 $porcentaje = ($oficina['satisfaccionPromedio'] / 5) * 100;
                 
                 $resultados[] = [
-                    'id' => $oficina['id'] || '',
-                    'nombre' => $oficina['nombre'],
-                    'totalEncuestas' => $oficina['totalEncuestas'],
-                    'satisfaccionPromedio' => $oficina['satisfaccionPromedio'],
-                    'porcentaje' => round($porcentaje, 1)
+                    'id' => $oficina['id'] ?? '',
+                    'nombre' => $oficina['nombre'] ?? '',
+                    'totalEncuestas' => $oficina['totalEncuestas'] ?? 0,
+                    'satisfaccionPromedio' => $oficina['satisfaccionPromedio'] ?? 0,
+                    'porcentaje' => round($porcentaje, 1),
+                    'porcentajeRecomendacion' => $recomendacionStats['porcentaje'] ?? 0 // ✅ NUEVO
                 ];
             }
             
@@ -1187,6 +1321,49 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 'success' => false,
                 'error' => $e->getMessage()
             ];
+        }
+    }
+
+    // ✅ NUEVO MÉTODO: Obtener porcentaje de recomendación por oficina
+    protected function obtenerRecomendacionPorOficina($entityManager, $oficinaId)
+    {
+        try {
+            // Obtener usuarios de la oficina
+            $userIds = $this->getUserIdsByTeam($entityManager, $oficinaId);
+            
+            if (empty($userIds)) {
+                return ['total' => 0, 'recomiendan' => 0, 'porcentaje' => 0];
+            }
+            
+            $pdo = $entityManager->getPDO();
+            $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+            
+            // Contar total de encuestas con recomendación
+            $sql = "SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN recommendation = '1' THEN 1 ELSE 0 END) as recomiendan
+                    FROM ccustomersurvey 
+                    WHERE assigned_user_id IN ($placeholders)
+                    AND estatus = '2'
+                    AND deleted = 0";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->execute($userIds);
+            $row = $sth->fetch(\PDO::FETCH_ASSOC);
+            
+            $total = $row['total'] ?? 0;
+            $recomiendan = $row['recomiendan'] ?? 0;
+            
+            $porcentaje = $total > 0 ? round(($recomiendan / $total) * 100, 1) : 0;
+            
+            return [
+                'total' => $total,
+                'recomiendan' => $recomiendan,
+                'porcentaje' => $porcentaje
+            ];
+            
+        } catch (\Exception $e) {
+            return ['total' => 0, 'recomiendan' => 0, 'porcentaje' => 0];
         }
     }
 
@@ -1342,7 +1519,15 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         try {
             $pdo = $entityManager->getPDO();
             
-            $sql = "SELECT name FROM user WHERE id = :userId AND deleted = 0 LIMIT 1";
+            $sql = "SELECT 
+                        name,
+                        first_name,
+                        last_name,
+                        user_name
+                    FROM user 
+                    WHERE id = :userId 
+                    AND deleted = 0 
+                    LIMIT 1";
             
             $sth = $pdo->prepare($sql);
             $sth->bindValue(':userId', $userId);
@@ -1350,10 +1535,29 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             
             $row = $sth->fetch(\PDO::FETCH_ASSOC);
             
-            return $row ? $row['name'] : 'Usuario #' . substr($userId, 0, 8);
+            if (!$row) {
+                return 'Asesor #' . substr($userId, 0, 8);
+            }
+            
+            // ✅ Priorizar: name > first_name + last_name > user_name
+            if (!empty($row['name'])) {
+                return $row['name'];
+            }
+            
+            $nombreCompleto = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+            if (!empty($nombreCompleto)) {
+                return $nombreCompleto;
+            }
+            
+            if (!empty($row['user_name'])) {
+                return $row['user_name'];
+            }
+            
+            return 'Asesor #' . substr($userId, 0, 8);
             
         } catch (\Exception $e) {
-            return 'Usuario';
+            $GLOBALS['log']->error('Error al obtener nombre usuario: ' . $e->getMessage());
+            return 'Asesor #' . substr($userId, 0, 8);
         }
     }
 
@@ -1432,7 +1636,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             $pdo = $entityManager->getPDO();
             
             // Buscar usuarios de la oficina y ver a qué CLA pertenecen
-            $sql = "SELECT DISTINCT t2.id 
+            $sql = "SELECT DISTINCT t2.id, t2.name
                     FROM team_user tu1
                     INNER JOIN team_user tu2 ON tu1.user_id = tu2.user_id
                     INNER JOIN team t2 ON tu2.team_id = t2.id
@@ -1449,12 +1653,433 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             
             $row = $sth->fetch(\PDO::FETCH_ASSOC);
             
+            if ($row) {
+                $GLOBALS['log']->info("CLA encontrado para oficina $oficinaId: {$row['id']} - {$row['name']}");
+                return $row['id'];
+            }
+            
+            $GLOBALS['log']->warning("No se encontró CLA para oficina: $oficinaId");
+            return null;
+            
+        } catch (\Exception $e) {
+            $GLOBALS['log']->error('Error getCLADeOficina: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+
+    public function getActionGetCLAs($params, $data, $request)
+    {
+        try {
+            $entityManager = $this->getContainer()->get('entityManager');
+            
+            $pdo = $entityManager->getPDO();
+            
+            $sql = "SELECT id, name 
+                    FROM team 
+                    WHERE id LIKE 'CLA%' 
+                    AND deleted = 0 
+                    ORDER BY name";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->execute();
+            
+            $clas = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                $clas[] = [
+                    'id' => $row['id'],
+                    'name' => $row['name']
+                ];
+            }
+            
+            return [
+                'success' => true,
+                'data' => $clas
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    public function getActionGetOficinasByCLA($params, $data, $request)
+    {
+        try {
+            $claId = $request->get('claId');
+            
+            if (!$claId) {
+                return [
+                    'success' => false,
+                    'error' => 'ID de CLA no proporcionado'
+                ];
+            }
+            
+            $entityManager = $this->getContainer()->get('entityManager');
+            
+            // Obtener usuarios del CLA
+            $userIds = $this->getUserIdsByCLA($entityManager, $claId);
+            
+            if (empty($userIds)) {
+                return [
+                    'success' => true,
+                    'data' => []
+                ];
+            }
+            
+            // Obtener oficinas de esos usuarios
+            $pdo = $entityManager->getPDO();
+            
+            $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+            $sql = "SELECT DISTINCT t.id, t.name 
+                    FROM team t
+                    INNER JOIN team_user tu ON t.id = tu.team_id
+                    WHERE tu.user_id IN ($placeholders)
+                    AND t.id NOT LIKE 'CLA%'
+                    AND t.id != 'venezuela'
+                    AND LOWER(t.name) != 'venezuela'
+                    AND tu.deleted = 0
+                    AND t.deleted = 0
+                    ORDER BY t.name";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->execute($userIds);
+            
+            $oficinas = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                $oficinas[] = [
+                    'id' => $row['id'],
+                    'name' => $row['name']
+                ];
+            }
+            
+            return [
+                'success' => true,
+                'data' => $oficinas
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    public function getActionGetAsesoresByOficina($params, $data, $request)
+    {
+        try {
+            $oficinaId = $request->get('oficinaId');
+            
+            if (!$oficinaId) {
+                return [
+                    'success' => false,
+                    'error' => 'ID de oficina no proporcionado'
+                ];
+            }
+            
+            $entityManager = $this->getContainer()->get('entityManager');
+            
+            // Obtener usuarios de la oficina
+            $userIds = $this->getUserIdsByTeam($entityManager, $oficinaId);
+            
+            if (empty($userIds)) {
+                return [
+                    'success' => true,
+                    'data' => []
+                ];
+            }
+            
+            // Obtener información de los usuarios
+            $pdo = $entityManager->getPDO();
+            
+            $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+            $sql = "SELECT id, name, email_address 
+                    FROM user 
+                    WHERE id IN ($placeholders)
+                    AND deleted = 0
+                    AND is_active = 1
+                    ORDER BY name";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->execute($userIds);
+            
+            $asesores = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                // Verificar si tiene encuestas
+                $encuestas = $entityManager->getRepository('CCustomerSurvey')
+                    ->where([
+                        'assignedUserId' => $row['id'],
+                        'deleted' => false,
+                        'estatus' => '2'
+                    ])
+                    ->count();
+                
+                if ($encuestas > 0) {
+                    $asesores[] = [
+                        'id' => $row['id'],
+                        'name' => $row['name'] ?: 'Usuario #' . substr($row['id'], 0, 8),
+                        'email' => $row['email_address'],
+                        'encuestas' => $encuestas
+                    ];
+                }
+            }
+            
+            // Ordenar por nombre
+            usort($asesores, function($a, $b) {
+                return strcmp($a['name'], $b['name']);
+            });
+            
+            return [
+                'success' => true,
+                'data' => $asesores
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    public function getActionGetInfoOficina($params, $data, $request)
+    {
+        try {
+            $oficinaId = $request->get('oficinaId');
+            
+            if (!$oficinaId) {
+                return [
+                    'success' => false,
+                    'error' => 'ID de oficina no proporcionado'
+                ];
+            }
+            
+            $entityManager = $this->getContainer()->get('entityManager');
+            $pdo = $entityManager->getPDO();
+            
+            // 1. Obtener nombre de la oficina
+            $sql = "SELECT name FROM team WHERE id = :oficinaId AND deleted = 0 LIMIT 1";
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':oficinaId', $oficinaId);
+            $sth->execute();
+            $oficina = $sth->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$oficina) {
+                return [
+                    'success' => false,
+                    'error' => 'Oficina no encontrada'
+                ];
+            }
+            
+            $nombreOficina = $oficina['name'];
+            
+            // 2. Obtener el CLA al que pertenece la oficina
+            $claId = $this->getCLADeOficina($entityManager, $oficinaId);
+            
+            if (!$claId) {
+                return [
+                    'success' => false,
+                    'error' => 'No se pudo determinar el CLA de esta oficina'
+                ];
+            }
+            
+            // 3. Obtener nombre del CLA
+            $sql = "SELECT name FROM team WHERE id = :claId AND deleted = 0 LIMIT 1";
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':claId', $claId);
+            $sth->execute();
+            $cla = $sth->fetch(\PDO::FETCH_ASSOC);
+            
+            $nombreCla = $cla ? $cla['name'] : '';
+            
+            // 4. Obtener todas las oficinas del CLA (para el selector)
+            $oficinas = $this->getOficinasByCLA($entityManager, $claId);
+            
+            return [
+                'success' => true,
+                'data' => [
+                    'nombreOficina' => $nombreOficina,
+                    'nombreCla' => $nombreCla,
+                    'claId' => $claId,
+                    'oficinas' => $oficinas
+                ]
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * ✅ FUNCIÓN AUXILIAR: Obtener oficinas de un CLA
+     */
+    protected function getOficinasByCLA($entityManager, $claId)
+    {
+        try {
+            // Obtener usuarios del CLA
+            $userIds = $this->getUserIdsByCLA($entityManager, $claId);
+            
+            if (empty($userIds)) {
+                return [];
+            }
+            
+            $pdo = $entityManager->getPDO();
+            
+            // Obtener oficinas de esos usuarios (excluir CLAs y venezuela)
+            $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+            $sql = "SELECT DISTINCT t.id, t.name 
+                    FROM team t
+                    INNER JOIN team_user tu ON t.id = tu.team_id
+                    WHERE tu.user_id IN ($placeholders)
+                    AND t.id NOT LIKE 'CLA%'
+                    AND t.id != 'venezuela'
+                    AND LOWER(t.name) != 'venezuela'
+                    AND tu.deleted = 0
+                    AND t.deleted = 0
+                    ORDER BY t.name";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->execute($userIds);
+            
+            $oficinas = [];
+            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
+                $oficinas[] = [
+                    'id' => $row['id'],
+                    'name' => $row['name']
+                ];
+            }
+            
+            return $oficinas;
+            
+        } catch (\Exception $e) {
+            $GLOBALS['log']->error('Error getOficinasByCLA: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getActionGetInfoAsesor($params, $data, $request)
+    {
+        try {
+            $asesorId = $request->get('asesorId');
+            
+            if (!$asesorId) {
+                return [
+                    'success' => false,
+                    'error' => 'ID de asesor no proporcionado'
+                ];
+            }
+            
+            $entityManager = $this->getContainer()->get('entityManager');
+            $pdo = $entityManager->getPDO();
+            
+            // Obtener información del usuario
+            $sql = "SELECT name, email_address, first_name, last_name, user_name 
+                    FROM user 
+                    WHERE id = :asesorId 
+                    AND deleted = 0 
+                    LIMIT 1";
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':asesorId', $asesorId);
+            $sth->execute();
+            $usuario = $sth->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$usuario) {
+                return [
+                    'success' => false,
+                    'error' => 'Asesor no encontrado'
+                ];
+            }
+            
+            // Obtener CLA y oficina del asesor
+            $claId = $this->getUserCLA($entityManager, $asesorId);
+            $oficinaId = $this->getOficinaDelAsesor($entityManager, $asesorId);
+            
+            $nombreCla = '';
+            $nombreOficina = '';
+            
+            if ($claId) {
+                $sql = "SELECT name FROM team WHERE id = :claId AND deleted = 0 LIMIT 1";
+                $sth = $pdo->prepare($sql);
+                $sth->bindValue(':claId', $claId);
+                $sth->execute();
+                $cla = $sth->fetch(\PDO::FETCH_ASSOC);
+                $nombreCla = $cla ? $cla['name'] : '';
+            }
+            
+            if ($oficinaId) {
+                $sql = "SELECT name FROM team WHERE id = :oficinaId AND deleted = 0 LIMIT 1";
+                $sth = $pdo->prepare($sql);
+                $sth->bindValue(':oficinaId', $oficinaId);
+                $sth->execute();
+                $oficina = $sth->fetch(\PDO::FETCH_ASSOC);
+                $nombreOficina = $oficina ? $oficina['name'] : '';
+            }
+            
+            // Construir nombre completo
+            $nombreCompleto = $usuario['name'];
+            if (!$nombreCompleto) {
+                $nombreCompleto = trim(($usuario['first_name'] ?? '') . ' ' . ($usuario['last_name'] ?? ''));
+                if (!$nombreCompleto) {
+                    $nombreCompleto = $usuario['user_name'] ?? 'Usuario #' . substr($asesorId, 0, 8);
+                }
+            }
+            
+            return [
+                'success' => true,
+                'data' => [
+                    'nombre' => $nombreCompleto,
+                    'email' => $usuario['email_address'] ?? '',
+                    'cla' => $nombreCla,
+                    'oficina' => $nombreOficina,
+                    'claId' => $claId,
+                    'oficinaId' => $oficinaId
+                ]
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    protected function getOficinaDelAsesor($entityManager, $asesorId)
+    {
+        try {
+            $pdo = $entityManager->getPDO();
+            
+            $sql = "SELECT t.id 
+                    FROM team t
+                    INNER JOIN team_user tu ON t.id = tu.team_id
+                    WHERE tu.user_id = :asesorId
+                    AND t.id NOT LIKE 'CLA%'
+                    AND t.id != 'venezuela'
+                    AND LOWER(t.name) != 'venezuela'
+                    AND tu.deleted = 0
+                    AND t.deleted = 0
+                    LIMIT 1";
+            
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':asesorId', $asesorId);
+            $sth->execute();
+            
+            $row = $sth->fetch(\PDO::FETCH_ASSOC);
+            
             return $row ? $row['id'] : null;
             
         } catch (\Exception $e) {
             return null;
         }
     }
+
+
 
 
 
