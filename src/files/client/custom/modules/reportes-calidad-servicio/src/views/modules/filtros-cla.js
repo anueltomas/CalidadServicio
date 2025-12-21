@@ -32,7 +32,9 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                     function () {
                         this.procesarTeams(collection);
                         this.populateCLASelect();
-                        this.view.estadisticasManager.loadStatistics();
+
+                        // ✅ NUEVO: Cargar CLA inicial automáticamente
+                        this.cargarCLAInicial();
                     }.bind(this)
                 );
             }.bind(this)
@@ -66,42 +68,43 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
         claSelect.empty();
 
         var permisos = this.view.permisosManager.getPermisos();
-        var clasDisponibles = this.allTeams.clas;
 
-        if (!permisos.esAdministrativo && !permisos.esCasaNacional) {
+        // ✅ SIMPLIFICADO: TODOS ven Territorio Nacional primero
+        claSelect.append(
+            $("<option></option>").val("CLA0").text("Territorio Nacional")
+        );
+
+        var clasDisponibles = [];
+
+        // ✅ Admin y Casa Nacional ven todos los CLAs
+        if (permisos.esAdministrativo || permisos.esCasaNacional) {
+            clasDisponibles = this.allTeams.clas.filter(function (cla) {
+                return cla.id !== "CLA0";
+            });
+        }
+        // ✅ Gerentes, Directores, Coordinadores, Afiliados ven su CLA
+        else if (
+            permisos.esGerente ||
+            permisos.esDirector ||
+            permisos.esCoordinador ||
+            permisos.esAfiliado
+        ) {
             if (permisos.claUsuario) {
-                clasDisponibles = clasDisponibles.filter(function (cla) {
+                clasDisponibles = this.allTeams.clas.filter(function (cla) {
                     return cla.id === permisos.claUsuario;
                 });
-            } else {
-                clasDisponibles = [];
+            }
+        }
+        // ✅ Asesores Regulares ven su CLA
+        else if (permisos.esAsesorRegular) {
+            if (permisos.claUsuario) {
+                clasDisponibles = this.allTeams.clas.filter(function (cla) {
+                    return cla.id === permisos.claUsuario;
+                });
             }
         }
 
-        var cla0 = clasDisponibles.find(function (cla) {
-            return cla.id === "CLA0";
-        });
-
-        if (cla0) {
-            claSelect.append(
-                $("<option></option>")
-                    .val("CLA0") // ✅ CAMBIO: Usar "CLA0" en lugar de ""
-                    .text("Territorio Nacional")
-                    .prop("selected", true)
-            );
-
-            clasDisponibles = clasDisponibles.filter(function (cla) {
-                return cla.id !== "CLA0";
-            });
-        } else {
-            claSelect.append(
-                $("<option></option>")
-                    .val("") // Sin CLA0, usar vacío
-                    .text("Territorio Nacional")
-                    .prop("selected", true)
-            );
-        }
-
+        // Ordenar y agregar
         clasDisponibles.sort(function (a, b) {
             return a.name.localeCompare(b.name);
         });
@@ -110,6 +113,8 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
             claSelect.append($("<option></option>").val(cla.id).text(cla.name));
         });
 
+        // ✅ Seleccionar Territorio Nacional por defecto para TODOS
+        claSelect.val("CLA0");
         claSelect.prop("disabled", false);
     };
 
@@ -124,20 +129,33 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                 function (e) {
                     var claId = $(e.currentTarget).val();
 
-                    // ✅ Actualizar filtros
+                    console.log("🔍 DEBUG - CLA seleccionado:", claId);
+                    console.log("🔍 DEBUG - CLA es CLA0?:", claId === "CLA0");
+                    console.log("🔍 DEBUG - CLA es null/empty?:", !claId);
+
+                    // Actualizar filtros
                     this.filtros.cla = claId || null;
                     this.filtros.oficina = null;
                     this.filtros.asesor = null;
+
+                    // ✅ CORRECCIÓN CRÍTICA: Asegurar que mostrarTodas sea true cuando es CLA0
                     this.filtros.mostrarTodas = !claId || claId === "CLA0";
 
-                    // ✅ Obtener botones
+                    console.log(
+                        "🔍 DEBUG - Filtros actualizados:",
+                        this.filtros
+                    );
+                    console.log(
+                        "🔍 DEBUG - mostrarTodas:",
+                        this.filtros.mostrarTodas
+                    );
+
                     var btnComparacionOficinas = this.view.$el.find(
                         "#btn-comparar-oficinas"
                     );
                     var btnComparacionAsesores = this.view.$el.find(
                         "#btn-comparar-asesores"
                     );
-
                     var oficinaSelect = this.view.$el.find("#oficina-select");
                     var asesorSelect = this.view.$el.find("#asesor-select");
 
@@ -145,9 +163,11 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                     oficinaSelect.val("");
                     asesorSelect.val("");
 
-                    // ✅ Lógica de visibilidad de botones
+                    var permisos = this.view.permisosManager.getPermisos();
+
+                    // ✅ CORRECCIÓN: Para asesor regular, habilitar botón de comparar oficinas cuando selecciona su CLA
                     if (claId && claId !== "CLA0") {
-                        // CLA específico seleccionado
+                        // Mostrar botón de comparar oficinas para todos
                         btnComparacionOficinas
                             .show()
                             .css("display", "inline-flex");
@@ -161,9 +181,9 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                             );
                         }
                     } else {
-                        // Territorio Nacional o vacío
                         btnComparacionOficinas.hide();
 
+                        // Solo para admin, mostrar mensaje de seleccionar CLA
                         oficinaSelect.empty();
                         oficinaSelect.append(
                             '<option value="">Seleccione un CLA primero</option>'
@@ -171,21 +191,22 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                         oficinaSelect.prop("disabled", true);
                     }
 
-                    // ✅ Siempre ocultar botón de asesores al cambiar CLA
                     btnComparacionAsesores.hide();
 
-                    // Limpiar select de asesores
                     if (this.view.filtrosAsesoresManager) {
                         this.view.filtrosAsesoresManager.limpiarFiltros();
                     }
 
-                    // Recargar estadísticas
+                    // ✅ Recargar estadísticas siempre
+                    console.log(
+                        "🔍 DEBUG - Llamando a loadStatistics con filtros:",
+                        this.filtros
+                    );
                     this.view.estadisticasManager.loadStatistics();
                 }.bind(this)
             );
         }
 
-        // ✅ NUEVO: Configurar evento del botón de comparar oficinas
         this.setupComparacionOficinas();
     };
 
@@ -224,7 +245,46 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
     };
 
     FiltrosCLAManager.prototype.getFiltros = function () {
+        console.log("🔍 DEBUG getFiltros - Retornando:", this.filtros);
         return this.filtros;
+    };
+
+    FiltrosCLAManager.prototype.cargarCLAInicial = function () {
+        var permisos = this.view.permisosManager.getPermisos();
+
+        if (!permisos.permisosListo) {
+            console.log("⏳ Esperando permisos...");
+            setTimeout(
+                function () {
+                    this.cargarCLAInicial();
+                }.bind(this),
+                200
+            );
+            return;
+        }
+
+        var claSelect = this.view.$el.find("#cla-select");
+
+        if (!claSelect.length) {
+            console.warn("⚠️ Select CLA no encontrado");
+            return;
+        }
+
+        // ✅ Forzar selección de Territorio Nacional
+        console.log("🌎 FORZANDO selección de Territorio Nacional por defecto");
+
+        // Asegurar que el valor esté en el select
+        if (claSelect.find('option[value="CLA0"]').length > 0) {
+            claSelect.val("CLA0");
+
+            // ✅ AGREGAR: Disparar el evento change manualmente después de un breve delay
+            setTimeout(function () {
+                console.log("🔄 Disparando evento change para CLA0");
+                claSelect.trigger("change");
+            }, 500);
+        } else {
+            console.error("❌ ERROR: Option CLA0 no encontrada en el select");
+        }
     };
 
     return FiltrosCLAManager;

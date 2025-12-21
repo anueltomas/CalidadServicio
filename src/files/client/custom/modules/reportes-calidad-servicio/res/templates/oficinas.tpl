@@ -3,14 +3,16 @@
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="page-header-card">
-                <div class="d-flex justify-content-between align-items-center flex-wrap">
-                    <div class="header-left">
+                <div class="d-flex justify-content-between align-items-start flex-wrap">
+                    <div class="header-left" style="flex: 1;">
                         <div class="header-icon">
                             <i class="fas fa-building"></i>
                         </div>
                         <div class="header-content">
                             <h1 class="page-title">Comparación de Oficinas</h1>
-                            <p class="page-subtitle">Análisis comparativo del desempeño por CLA</p>
+                            <p class="page-subtitle">
+                                Análisis comparativo del desempeño por CLA
+                            </p>
                         </div>
                     </div>
                     <div class="header-actions">
@@ -94,26 +96,33 @@
 <!-- Estilos CSS integrados -->
 <!-- Estilos CSS integrados - VERSIÓN UNIFICADA -->
 <style>
+    /* Estilos base */
     .oficinas-comparacion-container {
         padding: 30px;
         background-color: #F5F5F5;
         min-height: 100vh;
     }
 
-    /* Header principal */
-    .page-header-card {
+    /* Estilos para tarjetas generales */
+    .page-header-card,
+    .filtro-card,
+    .resumen-cla-card,
+    .grafico-principal-card,
+    .no-data-card {
         background: #FFFFFF;
         border-radius: 12px;
         padding: 30px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        margin-bottom: 30px;
         border: 1px solid #E6E6E6;
+        margin-bottom: 30px;
     }
 
+    /* Header principal */
     .header-left {
         display: flex;
         align-items: center;
         gap: 20px;
+        flex: 1;
     }
 
     .header-icon {
@@ -143,8 +152,12 @@
     .page-subtitle {
         color: #666666;
         font-size: 16px;
-        margin: 0;
+        margin: 12px 0 0 0;
         font-weight: 400;
+    }
+
+    .header-actions {
+        align-self: flex-start;
     }
 
     /* Botones header */
@@ -160,6 +173,7 @@
         display: inline-flex;
         align-items: center;
         cursor: pointer;
+        white-space: nowrap;
     }
 
     .btn-volver:hover {
@@ -171,15 +185,6 @@
     }
 
     /* Filtro card */
-    .filtro-card {
-        background: #FFFFFF;
-        border-radius: 12px;
-        padding: 30px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        margin-bottom: 30px;
-        border: 1px solid #E6E6E6;
-    }
-
     .filtro-header {
         margin-bottom: 25px;
     }
@@ -249,8 +254,10 @@
     .filtro-actions {
         display: flex;
         gap: 10px;
+        flex-shrink: 0;
     }
 
+    /* Botones de acción */
     .btn-action {
         border-radius: 8px;
         padding: 14px 24px;
@@ -261,6 +268,7 @@
         transition: all 0.3s ease;
         display: inline-flex;
         align-items: center;
+        white-space: nowrap;
     }
 
     .btn-refrescar {
@@ -301,15 +309,10 @@
         100% { transform: rotate(360deg); }
     }
 
-    /* No Data Card */
+    /* No Data State */
     .no-data-card {
-        background: #FFFFFF;
-        border-radius: 12px;
-        padding: 80px 40px;
         text-align: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        margin: 40px 0;
-        border: 1px solid #E6E6E6;
+        padding: 80px 40px;
     }
 
     .no-data-icon {
@@ -340,16 +343,7 @@
         font-style: italic;
     }
 
-    /* Resumen CLA */
-    .resumen-cla-card {
-        background: #FFFFFF;
-        border-radius: 12px;
-        padding: 30px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        margin-bottom: 30px;
-        border: 1px solid #E6E6E6;
-    }
-
+    /* Resumen CLA - CORRECCIONES PARA ALTURAS IGUALES */
     .resumen-cla-header {
         margin-bottom: 25px;
     }
@@ -374,16 +368,32 @@
         border-top: 1px solid #E6E6E6;
     }
 
+    /* Contenedor de las columnas para igualar alturas */
+    .resumen-cla-body .row {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .resumen-cla-body .col-md-3,
+    .resumen-cla-body .col-sm-6 {
+        display: flex;
+        margin-bottom: 20px;
+    }
+
+    /* Elementos de estadísticas - ALTURAS IGUALES */
     .resumen-stat {
         background: #FFFFFF;
         border: 1px solid #E6E6E6;
         border-radius: 10px;
         padding: 20px;
         transition: all 0.3s ease;
-        height: 100%;
         display: flex;
         align-items: center;
         gap: 15px;
+        flex: 1;
+        min-height: 110px;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .resumen-stat:hover {
@@ -404,6 +414,13 @@
 
     .resumen-stat-content {
         flex: 1;
+        min-width: 0;
+        padding: 0 10px 0 0;
+    }
+
+    /* ✅ CORRECCIÓN: Asegurar que todos los elementos tengan el mismo padding */
+    .resumen-stat-content:last-child {
+        padding-right: 0;
     }
 
     .resumen-stat-value {
@@ -412,23 +429,19 @@
         font-size: 24px;
         margin-bottom: 5px;
         line-height: 1;
+        word-break: break-word;
     }
 
     .resumen-stat-label {
         color: #666666;
         font-size: 14px;
         font-weight: 500;
+        line-height: 1.3;
+        margin-right: 10px;
+        padding-right: 5px;
     }
 
-    /* Gráfico principal */
-    .grafico-principal-card {
-        background: #FFFFFF;
-        border-radius: 12px;
-        padding: 30px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        border: 1px solid #E6E6E6;
-    }
-
+    /* Gráfico principal - CORREGIDO */
     .grafico-header {
         display: flex;
         justify-content: space-between;
@@ -447,11 +460,14 @@
         align-items: center;
     }
 
+    /* ✅ CORRECCIÓN: Eliminado max-width: 500px que estaba cortando el texto */
     .grafico-subtitle {
         color: #666666;
         font-size: 15px;
         margin: 0;
-        max-width: 500px;
+        line-height: 1.4;
+        word-break: break-word;
+        overflow-wrap: break-word;
     }
 
     .grafico-legend {
@@ -519,7 +535,7 @@
         cursor: pointer;
     }
 
-    /* ✅ Alternativa HTML */
+    /* Alternativa HTML para gráfico */
     .chart-alternative {
         padding: 20px;
         background: white;
@@ -545,6 +561,7 @@
         background: #f9f9f9;
         border-radius: 6px;
         border: 1px solid #eee;
+        cursor: pointer;
     }
 
     .bar-label {
@@ -567,21 +584,6 @@
         transition: width 0.5s ease;
     }
 
-    .bar-tooltip {
-        display: none;
-        position: absolute;
-        top: -40px;
-        left: 0;
-        background: white;
-        border: 1px solid #E6E6E6;
-        padding: 8px 12px;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        z-index: 100;
-        white-space: nowrap;
-        font-size: 12px;
-    }
-
     .bar-value {
         margin-top: 5px;
         font-size: 11px;
@@ -590,7 +592,7 @@
         justify-content: space-between;
     }
 
-    /* Estilos para tooltip personalizado */
+    /* Tooltip personalizado */
     .chart-custom-tooltip {
         background: #FFFFFF !important;
         border: 1px solid #E6E6E6 !important;
@@ -614,20 +616,6 @@
 
     .chart-custom-tooltip .tooltip-content div:last-child {
         margin-bottom: 0 !important;
-    }
-
-    /* Ajustes para tooltip nativo de Chart.js */
-    .chartjs-tooltip {
-        background-color: rgba(255, 255, 255, 0.95) !important;
-        backdrop-filter: blur(4px);
-        border-radius: 8px !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
-        border: 1px solid #E6E6E6 !important;
-    }
-
-    /* Asegurar que no haya superposición */
-    .grafico-body * {
-        box-sizing: border-box;
     }
 
     /* Responsive Design */
@@ -671,19 +659,23 @@
             min-height: 300px;
         }
         
-        /* Mejorar legibilidad en móviles */
-        .grafico-wrapper {
-            position: relative;
-            overflow-x: auto;
-            overflow-y: hidden;
-        }
-        
-        #grafico-barras-horizontales {
-            min-width: 600px;
-        }
-        
         .alternative-body {
             max-height: 350px;
+        }
+        
+        /* Ajustes para estadísticas en tablets */
+        .resumen-stat {
+            min-height: 100px;
+            padding: 18px;
+        }
+        
+        .resumen-stat-icon {
+            width: 45px;
+            height: 45px;
+        }
+        
+        .resumen-stat-value {
+            font-size: 22px;
         }
     }
 
@@ -731,6 +723,11 @@
             flex-direction: column;
             text-align: center;
             gap: 12px;
+            padding: 15px;
+        }
+        
+        .resumen-stat-content {
+            padding: 0;
         }
         
         .grafico-title {
@@ -746,8 +743,8 @@
         }
         
         .legend-item {
-            padding: 5px 10px !important;
-            font-size: 11px !important;
+            padding: 5px 10px;
+            font-size: 11px;
         }
         
         .alternative-body {
@@ -798,11 +795,11 @@
         }
         
         .legend-item {
-            padding: 5px 8px !important;
+            padding: 5px 8px;
         }
         
         .legend-text {
-            font-size: 10px !important;
+            font-size: 10px;
         }
         
         .alternative-body {
@@ -833,23 +830,32 @@
             padding: 10px 16px;
             font-size: 13px;
         }
-        
-        #grafico-barras-horizontales {
-            min-width: 500px;
-        }
     }
 
     @media (max-width: 360px) {
-        #grafico-barras-horizontales {
-            min-width: 450px;
-        }
-        
         .grafico-wrapper {
             height: 200px;
         }
         
         .grafico-canvas-container {
             min-height: 120px;
+        }
+        
+        .resumen-stat {
+            padding: 12px;
+        }
+        
+        .resumen-stat-icon {
+            width: 35px;
+            height: 35px;
+        }
+        
+        .resumen-stat-value {
+            font-size: 16px;
+        }
+        
+        .resumen-stat-label {
+            font-size: 12px;
         }
     }
 </style>

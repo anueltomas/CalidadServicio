@@ -39,8 +39,19 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
         var filtros = this.view.filtrosCLAManager.getFiltros();
         var params = {};
 
+        console.log(
+            "🔍 DEBUG EstadisticasManager - Filtros recibidos:",
+            filtros
+        );
+
+        // ✅ CORRECCIÓN: Verificar específicamente para CLA0
         if (filtros.mostrarTodas) {
+            console.log(
+                "🔍 DEBUG - Modo 'mostrarTodas' activado (Territorio Nacional)"
+            );
+            // No enviar parámetros de filtro para Territorio Nacional
         } else {
+            console.log("🔍 DEBUG - Modo filtrado específico");
             if (filtros.cla) {
                 params.claId = filtros.cla;
             }
@@ -54,9 +65,13 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
             }
         }
 
+        console.log("🔍 DEBUG - Parámetros para backend:", params);
+        console.log("🔍 DEBUG - URL llamada: CCustomerSurvey/action/getStats");
+
         Espo.Ajax.getRequest("CCustomerSurvey/action/getStats", params)
             .then(
                 function (response) {
+                    console.log("✅ DEBUG - Respuesta del backend:", response);
                     if (response && response.success && response.data) {
                         this.stats = this.procesarEstadisticasReales(
                             response.data
@@ -64,14 +79,23 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                         this.view.hasData = this.stats.totalEncuestas > 0;
                         this.view.isLoading = false;
 
+                        console.log(
+                            "✅ DEBUG - Estadísticas procesadas:",
+                            this.stats
+                        );
                         this.updateUI();
                     } else {
+                        console.error(
+                            "❌ DEBUG - Error en respuesta del backend:",
+                            response
+                        );
                         this.handleNoData();
                     }
                 }.bind(this)
             )
             .catch(
                 function (error) {
+                    console.error("❌ DEBUG - Error en petición:", error);
                     this.handleNoData();
                 }.bind(this)
             );
@@ -397,6 +421,18 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
         compraPct,
         alquilerPct
     ) {
+        let nombreCLA = "Territorio Nacional";
+
+        console.log("TITULO: ", filtros);
+
+        if (filtros.cla && filtros.cla !== "CLA0") {
+            const claSelect = this.view.$el.find("#cla-select");
+            if (claSelect.length) {
+                const optionSeleccionada = claSelect.find("option:selected");
+                nombreCLA = optionSeleccionada.text() || filtros.cla;
+            }
+        }
+
         return `
         <div class="reporte-container">
             <!-- Información de Encuesta -->

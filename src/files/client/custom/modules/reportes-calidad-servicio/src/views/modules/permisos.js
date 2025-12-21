@@ -1,14 +1,19 @@
-define('reportes-calidad-servicio:views/modules/permisos', [], function () {
-    
+define("reportes-calidad-servicio:views/modules/permisos", [], function () {
     var PermisosManager = function (view) {
         this.view = view;
         this.permisos = {
             esAdministrativo: false,
             esCasaNacional: false,
+            esGerente: false,
+            esDirector: false,
+            esCoordinador: false,
+            esAfiliado: false,
+            esAsesorRegular: false,
             puedeImportar: false,
             claUsuario: null,
             oficinaUsuario: null,
-            permisosListo: false
+            usuarioId: null,
+            permisosListo: false,
         };
     };
 
@@ -16,51 +21,55 @@ define('reportes-calidad-servicio:views/modules/permisos', [], function () {
         var self = this;
         return new Promise(function (resolve, reject) {
             var user = self.view.getUser();
-            
-            self.view.getModelFactory().create('User', function (userModel) {
-                userModel.id = user.id;
-                userModel.fetch({ relations: { roles: true, teams: true } }).then(function () {
-                    var roles = Object.values(userModel.get('rolesNames') || {}).map(function (r) {
-                        return r.toLowerCase();
-                    });
-                    var teamsIds = userModel.get('teamsIds') || [];
-                    var defaultTeamId = userModel.get('default_team_id');
-                    
-                    // ✅ CORRECCIÓN: Solo verificar isAdmin() para permisos de importación
-                    self.permisos.esAdministrativo = user.isAdmin();
-                    self.permisos.esCasaNacional = roles.includes('casa nacional');
-                    
-                    // ✅ IMPORTANTE: Solo type=admin puede importar
-                    self.permisos.puedeImportar = user.isAdmin();
-                    
-                    // Determinar CLA del usuario
-                    var claPattern = /^CLA\d+$/i;
-                    self.permisos.claUsuario = teamsIds.find(function (id) {
-                        return claPattern.test(id);
-                    }) || null;
-                    
-                    // Determinar oficina del usuario
-                    if (defaultTeamId && 
-                        !claPattern.test(defaultTeamId) && 
-                        defaultTeamId.toLowerCase() !== 'venezuela') {
-                        self.permisos.oficinaUsuario = defaultTeamId;
+
+            // ✅ USAR NUEVO ENDPOINT OPTIMIZADO
+            Espo.Ajax.getRequest("CCustomerSurvey/action/getUserInfo", {
+                userId: user.id,
+            })
+                .then(function (response) {
+                    if (response.success && response.data) {
+                        var userInfo = response.data;
+
+                        self.permisos = {
+                            esAdministrativo:
+                                userInfo.esAdministrativo || false,
+                            esCasaNacional: userInfo.esCasaNacional || false,
+                            esGerente: userInfo.esGerente || false,
+                            esDirector: userInfo.esDirector || false,
+                            esCoordinador: userInfo.esCoordinador || false,
+                            esAfiliado: userInfo.esAfiliado || false,
+                            esAsesorRegular: userInfo.esAsesorRegular || false,
+                            puedeImportar: userInfo.puedeImportar || false,
+                            claUsuario: userInfo.claUsuario || null,
+                            oficinaUsuario: userInfo.oficinaUsuario || null,
+                            usuarioId: userInfo.usuarioId || user.id,
+                            permisosListo: true,
+                        };
+
+                        console.log(
+                            "🔐 Permisos cargados desde backend:",
+                            self.permisos
+                        );
+                        self.aplicarRestriccionesUI();
+                        resolve(self.permisos);
+                    } else {
+                        reject(
+                            response.error ||
+                                "Error al cargar permisos del usuario"
+                        );
                     }
-                    
-                    self.permisos.permisosListo = true;
-                    
-                    self.aplicarRestriccionesUI();
-                    resolve(self.permisos);
-                }).catch(function(error) {
+                })
+                .catch(function (error) {
+                    console.error("❌ Error cargando permisos:", error);
                     reject(error);
                 });
-            });
         });
     };
 
     PermisosManager.prototype.aplicarRestriccionesUI = function () {
         if (!this.view.$el) return;
-        
-        var fileSection = this.view.$el.find('.file-input-section');
+
+        var fileSection = this.view.$el.find(".file-input-section");
         if (fileSection.length) {
             if (!this.permisos.puedeImportar) {
                 fileSection.hide();
@@ -74,12 +83,80 @@ define('reportes-calidad-servicio:views/modules/permisos', [], function () {
         return this.permisos;
     };
 
-    PermisosManager.prototype.puedeVerTodosCLAs = function() {
+    // ✅ MÉTODOS DE PERMISO (igual que antes)
+    PermisosManager.prototype.puedeVerTerritorioNacional = function () {
+        return (
+            this.permisos.esAdministrativo ||
+            this.permisos.esCasaNacional ||
+            this.permisos.esGerente ||
+            this.permisos.esDirector ||
+            this.permisos.esCoordinador ||
+            this.permisos.esAfiliado
+        );
+    };
+
+    PermisosManager.prototype.puedeVerTodosCLAs = function () {
         return this.permisos.esAdministrativo || this.permisos.esCasaNacional;
     };
 
-    PermisosManager.prototype.puedeVerTodasOficinas = function() {
+    PermisosManager.prototype.puedeVerTodasOficinas = function () {
         return this.permisos.esAdministrativo || this.permisos.esCasaNacional;
+    };
+
+    PermisosManager.prototype.puedeVerComparacionOficinas = function () {
+        return (
+            this.permisos.esAdministrativo ||
+            this.permisos.esCasaNacional ||
+            this.permisos.esGerente ||
+            this.permisos.esDirector ||
+            this.permisos.esCoordinador ||
+            this.permisos.esAfiliado
+        );
+    };
+
+    PermisosManager.prototype.puedeVerComparacionAsesores = function () {
+        return (
+            this.permisos.esAdministrativo ||
+            this.permisos.esCasaNacional ||
+            this.permisos.esGerente ||
+            this.permisos.esDirector ||
+            this.permisos.esCoordinador ||
+            this.permisos.esAfiliado ||
+            this.permisos.esAsesorRegular
+        );
+    };
+
+    PermisosManager.prototype.puedeVerDetalleAsesor = function (asesorId) {
+        // Si es asesor regular, solo puede ver su propio detalle
+        if (this.permisos.esAsesorRegular) {
+            return asesorId === this.permisos.usuarioId;
+        }
+
+        // Los demás roles pueden ver cualquier asesor de su equipo/oficina
+        return (
+            this.permisos.esAdministrativo ||
+            this.permisos.esCasaNacional ||
+            this.permisos.esGerente ||
+            this.permisos.esDirector ||
+            this.permisos.esCoordinador ||
+            this.permisos.esAfiliado
+        );
+    };
+
+    PermisosManager.prototype.getCLAPermitido = function () {
+        // Retorna el CLA que el usuario puede ver
+        if (this.permisos.esAdministrativo || this.permisos.esCasaNacional) {
+            return null; // Puede ver todos
+        }
+        return this.permisos.claUsuario;
+    };
+
+    PermisosManager.prototype.getOficinaPermitida = function () {
+        // Retorna la oficina que el usuario puede ver
+        if (this.permisos.esAdministrativo || this.permisos.esCasaNacional) {
+            return null; // Puede ver todas
+        }
+        return this.permisos.oficinaUsuario;
     };
 
     return PermisosManager;

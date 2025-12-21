@@ -18,17 +18,42 @@ define("reportes-calidad-servicio:views/modules/filtros-asesores", [], function 
 
         var permisos = this.view.permisosManager.getPermisos();
 
-        // Si el usuario no es admin ni casa nacional
-        if (!permisos.esAdministrativo && !permisos.esCasaNacional) {
-            var user = this.view.getUser();
-
-            // Solo mostrar al usuario actual
-            this.cargarAsesorEspecifico(user.id, asesorSelect);
+        // ✅ PARA ASESOR REGULAR: Mostrar opciones especiales
+        if (permisos.esAsesorRegular) {
+            this.cargarOpcionesAsesorRegular(asesorSelect);
             return;
         }
 
         // Si es admin o casa nacional, cargar todos los asesores de la oficina
         this.cargarAsesoresPorOficina(oficinaId);
+    };
+
+    FiltrosAsesoresManager.prototype.cargarOpcionesAsesorRegular = function (
+        asesorSelect
+    ) {
+        var permisos = this.view.permisosManager.getPermisos();
+
+        // Primero mostrar "Toda la oficina" (estadísticas generales)
+        asesorSelect.empty();
+        asesorSelect.append(
+            '<option value="">📊 Estadísticas de toda la oficina</option>'
+        );
+
+        // Luego mostrar "Ver mis estadísticas personales"
+        asesorSelect.append(
+            '<option value="' +
+                permisos.usuarioId +
+                '">👤 Mis estadísticas personales</option>'
+        );
+
+        asesorSelect.prop("disabled", false);
+
+        // ✅ Auto-seleccionar "Toda la oficina" por defecto
+        asesorSelect.val("");
+
+        console.log("✅ Opciones cargadas para asesor regular:");
+        console.log("  1. 📊 Estadísticas de toda la oficina (vacío)");
+        console.log("  2. 👤 Mis estadísticas personales");
     };
 
     /**
@@ -212,6 +237,15 @@ define("reportes-calidad-servicio:views/modules/filtros-asesores", [], function 
                 "change",
                 function (e) {
                     var asesorId = $(e.currentTarget).val();
+                    var optionText = $(e.currentTarget)
+                        .find("option:selected")
+                        .text();
+
+                    console.log(
+                        "📊 Asesor seleccionado:",
+                        asesorId || "Toda la oficina"
+                    );
+                    console.log("📋 Opción seleccionada:", optionText);
 
                     if (
                         this.view.filtrosCLAManager &&
@@ -221,8 +255,19 @@ define("reportes-calidad-servicio:views/modules/filtros-asesores", [], function 
                             asesorId || null;
                         this.view.filtrosCLAManager.filtros.mostrarTodas = false;
 
+                        // ✅ Recargar estadísticas inmediatamente
                         if (this.view.estadisticasManager) {
+                            console.log("🔄 Recargando estadísticas...");
                             this.view.estadisticasManager.loadStatistics();
+                        }
+
+                        // ✅ Mostrar mensaje informativo según selección
+                        if (!asesorId) {
+                            Espo.Ui.info(
+                                "Mostrando estadísticas de toda la oficina"
+                            );
+                        } else {
+                            Espo.Ui.info("Mostrando estadísticas personales");
                         }
                     }
                 }.bind(this)

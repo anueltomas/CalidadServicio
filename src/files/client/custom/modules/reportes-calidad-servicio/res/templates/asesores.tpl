@@ -271,4 +271,43 @@
     transform: translateX(2px);
     color: ${this.colors.primary} !important;
 }
+
+.asesor-propio {
+    border-left: 3px solid #B8A279 !important;
+    background-color: rgba(184, 162, 121, 0.08) !important;
+}
+
+.asesor-propio:hover {
+    background-color: rgba(184, 162, 121, 0.15) !important;
+}
+
+.badge-propio {
+    background: linear-gradient(135deg, #B8A279, #363438) !important;
+    color: white !important;
+    font-weight: 700 !important;
+    padding: 4px 8px !important;
+    border-radius: 12px !important;
+    font-size: 10px !important;
+}
+
+.cursor-permitido {
+    cursor: pointer !important;
+}
+
+.cursor-denegado {
+    cursor: not-allowed !important;
+}
+
+.info-permisos {
+    background: linear-gradient(135deg, rgba(184, 162, 121, 0.1), rgba(54, 52, 56, 0.1));
+    border-left: 4px solid #B8A279;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    font-size: 13px;
+}
+
+.info-permisos i {
+    color: #B8A279;
+}
 </style>

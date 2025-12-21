@@ -585,6 +585,80 @@ BOTON DE IMPORT Y REFRESCAR
     margin-bottom: 20px;
 }
 
+/* Separación de iconos en títulos */
+.page-header h3 .fas,
+.page-header h3 .far {
+    margin-right: 12px !important;
+}
+
+.info-title .fas,
+.info-title .far {
+    margin-right: 10px !important;
+}
+
+.titulo-seccion .fas,
+.titulo-seccion .far {
+    margin-right: 12px !important;
+}
+
+.grafico-titulo .fas,
+.grafico-titulo .far {
+    margin-right: 10px !important;
+}
+
+h1 .fas,
+h1 .far,
+h2 .fas,
+h2 .far,
+h3 .fas,
+h3 .far {
+    margin-right: 10px !important;
+}
+
+p .fas,
+p .far {
+    margin-right: 8px !important;
+}
+
+/* ===================================
+   Efecto hover mejorado para botones de comparación 
+   =================================== */
+
+.btn-comparison {
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-comparison::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    transition: left 0.3s ease;
+}
+
+.btn-comparison:hover::before {
+    left: 100%;
+}
+
+.btn-comparison:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25) !important;
+    filter: brightness(1.1);
+}
+
+#btn-comparar-oficinas:hover {
+    background: linear-gradient(135deg, #555555 0%, #888888 100%) !important;
+}
+
+#btn-comparar-asesores:hover {
+    background: linear-gradient(135deg, #A89968 0%, #C9B88A 100%) !important;
+}
+
 /* ===================================
    RESPONSIVE MEJORADO
    =================================== */

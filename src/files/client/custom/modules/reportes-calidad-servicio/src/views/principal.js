@@ -32,6 +32,7 @@ define("reportes-calidad-servicio:views/principal", [
             // 1. PermisosManager
             if (typeof PermisosManager === "function") {
                 this.permisosManager = new PermisosManager(this);
+                console.log("✅ DEBUG - PermisosManager inicializado");
             } else {
                 this.permisosManager = {
                     cargarPermisosUsuario: function () {
@@ -287,40 +288,22 @@ define("reportes-calidad-servicio:views/principal", [
             if (btnComparar.length && selectCLA.length) {
                 btnComparar.off("click").on("click", function () {
                     const claId = selectCLA.val();
-                    const claNombre = selectCLA.find("option:selected").text();
 
                     if (!claId) {
                         Espo.Ui.warning("Por favor, selecciona un CLA primero");
                         return;
                     }
 
-                    console.log(
-                        "🎯 Navegando a comparación de oficinas - CLA:",
-                        claId
-                    );
+                    // ✅ GUARDAR FILTROS ACTUALES ANTES DE NAVEGAR
+                    self.guardarFiltrosActuales();
 
-                    try {
-                        // ✅ CORREGIDO: Usar una ruta absoluta que se mantenga al refrescar
-                        self.getRouter().navigate(
-                            "#Principal/oficinas/" + claId,
-                            {
-                                trigger: true,
-                            }
-                        );
-                    } catch (error) {
-                        console.error("❌ Error en navegación:", error);
-                        Espo.Ui.error(
-                            "No se pudo navegar a la vista de comparación. Verifica que exista la vista 'oficinas'."
-                        );
-                    }
+                    // Navegar
+                    self.getRouter().navigate("#Principal/oficinas/" + claId, {
+                        trigger: true,
+                    });
                 });
-            } else {
-                console.warn(
-                    "⚠️ No se encontraron elementos de comparación de oficinas"
-                );
             }
         },
-
         setupCompararAsesoresListener: function () {
             const self = this;
 
@@ -335,45 +318,61 @@ define("reportes-calidad-servicio:views/principal", [
             ) {
                 btnComparar.off("click").on("click", function () {
                     const oficinaId = selectOficina.val();
-                    const oficinaNombre = selectOficina
-                        .find("option:selected")
-                        .text();
                     const claId = selectCLA.val();
 
-                    // ✅ Validaciones
+                    // Validaciones
                     if (!oficinaId) {
                         Espo.Ui.warning("Por favor, selecciona una oficina");
                         return;
                     }
 
-                    if (claId === "CLA0" || claId === "") {
-                        Espo.Ui.warning(
-                            "No puedes comparar asesores con Territorio Nacional seleccionado"
-                        );
-                        return;
-                    }
+                    // ✅ GUARDAR FILTROS ACTUALES ANTES DE NAVEGAR
+                    self.guardarFiltrosActuales();
 
-                    console.log(
-                        "👥 Navegando a comparación de asesores - Oficina:",
-                        oficinaId
+                    // Navegar
+                    self.getRouter().navigate(
+                        "#Principal/asesores/" + oficinaId,
+                        { trigger: true }
                     );
-
-                    try {
-                        // ✅ Usar la ruta correcta para asesores
-                        self.getRouter().navigate(
-                            "#Principal/asesores/" + oficinaId,
-                            {
-                                trigger: true,
-                            }
-                        );
-                    } catch (error) {
-                        console.error("❌ Error en navegación:", error);
-                        Espo.Ui.error(
-                            "No se pudo navegar a la vista de comparación de asesores."
-                        );
-                    }
                 });
             }
+        },
+
+        guardarFiltrosActuales: function () {
+            const selectCLA = this.$el.find("#cla-select");
+            const selectOficina = this.$el.find("#oficina-select");
+            const selectAsesor = this.$el.find("#asesor-select");
+
+            this.filtrosGuardados = {
+                cla: selectCLA.val(),
+                oficina: selectOficina.val(),
+                asesor: selectAsesor.val(),
+                timestamp: Date.now(),
+            };
+
+            console.log("💾 Filtros guardados:", this.filtrosGuardados);
+
+            // Opcional: Guardar en sessionStorage para persistencia
+            sessionStorage.setItem(
+                "filtrosPrincipal",
+                JSON.stringify(this.filtrosGuardados)
+            );
+        },
+
+        // ✅ AGREGAR: Método para cargar filtros desde sessionStorage
+        cargarFiltrosGuardados: function () {
+            try {
+                const filtrosGuardados =
+                    sessionStorage.getItem("filtrosPrincipal");
+                if (filtrosGuardados) {
+                    this.filtrosGuardados = JSON.parse(filtrosGuardados);
+                    console.log("📂 Filtros cargados:", this.filtrosGuardados);
+                    return true;
+                }
+            } catch (error) {
+                console.error("Error cargando filtros:", error);
+            }
+            return false;
         },
 
         initMappings: function () {

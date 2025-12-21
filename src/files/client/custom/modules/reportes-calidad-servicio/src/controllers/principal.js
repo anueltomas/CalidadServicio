@@ -17,6 +17,7 @@ define("reportes-calidad-servicio:controllers/principal", [
             const viewParams = {
                 scope: "CCustomerSurvey",
                 initialStats: this.getDefaultStats(),
+                previousRoute: null, // Reset de ruta anterior
             };
 
             this.main("reportes-calidad-servicio:views/principal", viewParams);
@@ -26,7 +27,7 @@ define("reportes-calidad-servicio:controllers/principal", [
             console.log("🏢 actionCompararOficinas");
             console.log("📦 Options recibidas:", options);
 
-            // Extraer claId
+            // ✅ CORRECCIÓN: Manejar múltiples formatos de parámetros
             let claId;
 
             if (typeof options === "string") {
@@ -35,6 +36,9 @@ define("reportes-calidad-servicio:controllers/principal", [
                 claId = options.claId;
             } else if (options && options.id) {
                 claId = options.id;
+            } else if (options && typeof options === "object") {
+                // Intentar extraer de cualquier propiedad del objeto
+                claId = Object.values(options)[0];
             }
 
             console.log("🔑 CLA ID extraído en controlador:", claId);
@@ -46,22 +50,29 @@ define("reportes-calidad-servicio:controllers/principal", [
                 return;
             }
 
-            // ✅ CORRECCIÓN: Pasar claId como parte de viewParams
+            // ✅ CORRECCIÓN: Validar que no sea Territorio Nacional
+            if (claId === "CLA0") {
+                Espo.Ui.warning(
+                    "No puedes comparar oficinas con Territorio Nacional"
+                );
+                this.getRouter().navigate("#Principal", { trigger: true });
+                return;
+            }
+
             const viewParams = {
-                claId: claId, // ✅ Esto es lo más importante
+                claId: claId,
                 scope: "CCustomerSurvey",
-                filtrosCompletos: `null-null-${claId}-null-null`, // ✅ También pasa el filtro completo
+                filtrosCompletos: `null-null-${claId}-null-null`,
                 filtros: {
                     cla: claId,
                     anio: null,
                     oficina: null,
                     usuario: null,
                 },
+                previousRoute: "#Principal",
             };
 
             console.log("🎯 ViewParams para vista oficinas:", viewParams);
-
-            // ✅ Pasar correctamente los parámetros a la vista
             this.main("reportes-calidad-servicio:views/oficinas", viewParams);
         },
 
@@ -90,10 +101,13 @@ define("reportes-calidad-servicio:controllers/principal", [
 
             console.log("✅ Cargando vista con oficinaId:", oficinaId);
 
-            this.main("reportes-calidad-servicio:views/asesores", {
+            const viewParams = {
                 oficinaId: oficinaId,
                 scope: "CCustomerSurvey",
-            });
+                previousRoute: "#Principal/oficinas/" + (options?.claId || ""), // Volver a oficinas si viene de ahí
+            };
+
+            this.main("reportes-calidad-servicio:views/asesores", viewParams);
         },
 
         actionEstadisticasAsesor: function (options) {
@@ -120,18 +134,13 @@ define("reportes-calidad-servicio:controllers/principal", [
                 return;
             }
 
-            // Pasar parámetros a la vista
             const viewParams = {
                 asesorId: asesorId,
                 scope: "CCustomerSurvey",
+                previousRoute:
+                    "#Principal/asesores/" + (options?.oficinaId || ""), // Ruta para volver
             };
 
-            console.log(
-                "🎯 ViewParams para vista estadísticas asesor:",
-                viewParams
-            );
-
-            // Cargar la nueva vista
             this.main(
                 "reportes-calidad-servicio:views/estadisticas-asesor",
                 viewParams

@@ -57,12 +57,9 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         setupEventListeners: function () {
             const self = this;
 
-            console.log("🔧 Configurando event listeners");
-
             this.$el.find('[data-action="volver"]').on("click", function (e) {
                 e.preventDefault();
-                console.log("🔄 Volviendo al panel principal");
-                self.volverAPrincipal();
+                self.volverAVistaAnterior();
             });
 
             this.$el.on("change", "#select-cla", function () {
@@ -104,6 +101,26 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                     self.navegarAAsesoresDeOficina(oficinaId);
                 }
             });
+        },
+
+        volverAVistaAnterior: function () {
+            console.log("🔙 Volviendo a vista anterior");
+
+            // Intentar usar previousRoute si está disponible
+            if (this.options.previousRoute) {
+                console.log(
+                    "📍 Usando previousRoute:",
+                    this.options.previousRoute
+                );
+                this.getRouter().navigate(this.options.previousRoute, {
+                    trigger: true,
+                });
+                return;
+            }
+
+            // Fallback: volver a principal
+            console.log("📍 Fallback: volviendo a Principal");
+            this.getRouter().navigate("#Principal", { trigger: true });
         },
 
         checkChartJSAvailability: function () {
@@ -278,9 +295,15 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
             this.isLoading = true;
             this.updateUI();
 
+            // ✅ NUEVO: Si es CLA0 (Territorio Nacional), obtener todas las oficinas
+            const params =
+                this.claId === "CLA0"
+                    ? { territorio: "nacional" }
+                    : { claId: this.claId };
+
             Espo.Ajax.getRequest(
                 "CCustomerSurvey/action/getComparacionOficinas",
-                { claId: this.claId }
+                params
             ).then(
                 function (response) {
                     console.log(
@@ -293,24 +316,16 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                         response.data &&
                         response.data.length > 0
                     ) {
-                        this.datosOficinas = response.data.map((item) => {
-                            const porcentajeRecomendacion =
-                                item.porcentajeRecomendacion ||
-                                item.recomendacionPorcentaje ||
-                                0;
-
-                            return {
-                                id: item.id || "",
-                                nombre: item.nombre || "Sin nombre",
-                                encuestasTotales: item.totalEncuestas || 0,
-                                satisfaccionPromedio:
-                                    parseFloat(item.satisfaccionPromedio) || 0,
-                                porcentajeRecomendacion: parseFloat(
-                                    porcentajeRecomendacion
-                                ),
-                                porcentaje: parseFloat(item.porcentaje) || 0,
-                            };
-                        });
+                        this.datosOficinas = response.data.map((item) => ({
+                            id: item.id || "",
+                            nombre: item.nombre || "Sin nombre",
+                            encuestasTotales: item.totalEncuestas || 0,
+                            satisfaccionPromedio:
+                                parseFloat(item.satisfaccionPromedio) || 0,
+                            porcentajeRecomendacion:
+                                parseFloat(item.porcentajeRecomendacion) || 0,
+                            porcentaje: parseFloat(item.porcentaje) || 0,
+                        }));
 
                         console.log(
                             `📊 ${this.datosOficinas.length} oficinas cargadas`
@@ -322,29 +337,20 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                                 b.satisfaccionPromedio - a.satisfaccionPromedio
                         );
                     } else {
-                        console.warn(
-                            "⚠️ No hay datos de oficinas para este CLA"
-                        );
+                        console.warn("⚠️ No hay datos de oficinas");
                         this.datosOficinas = [];
-                        Espo.Ui.info(
-                            "No hay datos de oficinas disponibles para este CLA"
-                        );
+                        Espo.Ui.info("No hay datos de oficinas disponibles");
                     }
 
                     this.isLoading = false;
                     this.updateUI();
 
-                    // ✅ Intentar renderizar gráfico después de un delay
                     setTimeout(() => {
                         this.renderGraficoBarrasHorizontales();
                     }, 300);
                 }.bind(this),
                 function (error) {
-                    console.error(
-                        "❌ Error en petición getComparacionOficinas:",
-                        error
-                    );
-
+                    console.error("❌ Error en petición:", error);
                     Espo.Ui.error("Error al cargar datos de oficinas");
                     this.datosOficinas = [];
                     this.isLoading = false;
@@ -543,10 +549,14 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                                             <div class="resumen-stat-content">
                                                 <div class="resumen-stat-value" style="color: ${
                                                     this.colors.success
-                                                };">${this.calcularPromedioRecomendacion().toFixed(
-                1
-            )}%</div>
-                                                <div class="resumen-stat-label">% Recomendación</div>
+                                                };">
+                                                    ${this.calcularPromedioRecomendacion().toFixed(
+                                                        1
+                                                    )} %
+                                                </div>
+                                                <div class="resumen-stat-label">
+                                                    Recomiendan
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -592,7 +602,7 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                     </div>
                 </div>
                 
-                <!-- Gráfico principal -->
+                
                 <div class="row">
                     <div class="col-md-12">
                         <div class="grafico-principal-card">
@@ -603,7 +613,10 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                                         Satisfacción por Oficina
                                     </h3>
                                     <p class="grafico-subtitle">
-                                        Comparación del porcentaje de satisfacción entre oficinas del CLA ${claDisplay}
+                                        Comparación del porcentaje de satisfacción entre oficinas del CLA 
+                                        <strong style="color: ${
+                                            this.colors.primary
+                                        }; font-weight: 600; display: inline;">${claDisplay}</strong>
                                     </p>
                                 </div>
                                 <div class="grafico-legend">
@@ -1001,6 +1014,16 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                 oficinaId
             );
 
+            sessionStorage.setItem(
+                "contextoNavegacion",
+                JSON.stringify({
+                    desde: "comparacion-oficinas",
+                    claId: this.claId,
+                    oficinaId: oficinaId,
+                    timestamp: Date.now(),
+                })
+            );
+
             if (!oficinaId) {
                 console.error("❌ ID de oficina no válido para navegación");
                 Espo.Ui.warning(
@@ -1012,21 +1035,13 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
             // ✅ AGREGAR un pequeño delay para asegurar que la navegación no interfiera
             setTimeout(() => {
                 try {
-                    const router = this.getRouter();
-                    if (!router) {
-                        throw new Error("Router no disponible");
-                    }
-
-                    // ✅ Construir la ruta correctamente
-                    const route =
-                        "#Principal/asesores/" + encodeURIComponent(oficinaId);
-                    console.log("📍 Navegando a ruta:", route);
-
-                    // ✅ Navegar SIN trigger si es necesario, pero mejor mantenerlo
-                    router.navigate(route, {
-                        trigger: true,
-                        replace: false, // Importante: no reemplazar la historia
-                    });
+                    this.getRouter().navigate(
+                        `#Principal/asesores/${oficinaId}`,
+                        {
+                            trigger: true,
+                            claId: this.claId, // Pasar claId para contexto de navegación
+                        }
+                    );
 
                     console.log("✅ Navegación iniciada exitosamente");
                 } catch (error) {

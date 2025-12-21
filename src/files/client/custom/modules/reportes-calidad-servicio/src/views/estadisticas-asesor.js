@@ -7,6 +7,18 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         template: "reportes-calidad-servicio:estadisticas-asesor",
 
         setup: function () {
+            console.log("🚀 Setup iniciado");
+
+            // ✅ Inicializar flags de control
+            this._afterRenderExecuted = false;
+            this._chartJSLoadInitiated = false;
+            this._chartJSLoading = false;
+            this._datosYaCargados = false;
+            this._cargandoDatos = false;
+            this._graficosRenderizados = false;
+            this._renderizandoCharts = false;
+            this._graficosActualizados = false;
+
             this.asesorId = this.options.asesorId || null;
 
             if (!this.asesorId) {
@@ -15,7 +27,18 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 return;
             }
 
-            // Paleta de colores unificada
+            // ✅ Datos iniciales desde options
+            this.asesorNombre = this.options.asesorNombre || "Cargando...";
+            this.oficinaNombre = this.options.oficinaNombre || "Cargando...";
+            this.claNombre = this.options.claNombre || "Cargando...";
+
+            // ✅ Solo recuperar de sessionStorage si NO vienen en options
+            if (!this.options.asesorNombre && !this.options.datosAsesor) {
+                this.recuperarDatosSessionStorage();
+            }
+
+            this.previousRoute = this.options.previousRoute || null;
+
             this.colores = {
                 primario: "#B8A279",
                 secundario: "#363438",
@@ -26,7 +49,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 blanco: "#FFFFFF",
             };
 
-            // Inicializar managers
             if (typeof EstadisticasManager === "function") {
                 this.estadisticasManager = new EstadisticasManager(this);
             }
@@ -35,332 +57,607 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 this.graficosManager = new GraficosManager(this);
             }
 
-            // Estado inicial
             this.isLoading = true;
             this.stats = this.getStatsIniciales();
             this.infoAsesor = {
-                nombre: "Cargando...",
-                oficina: "Cargando...",
-                cla: "Cargando...",
+                nombre: this.asesorNombre,
+                oficina: this.oficinaNombre,
+                cla: this.claNombre,
             };
 
             this.chartLoaded = false;
             this.dataLoaded = false;
+
+            console.log("✅ Setup completado");
+        },
+
+        data: function () {
+            return {
+                infoAsesor: this.infoAsesor,
+                stats: this.stats,
+                isLoading: this.isLoading,
+                colors: this.colores,
+                asesorId: this.asesorId,
+            };
+        },
+
+        recuperarDatosSessionStorage: function () {
+            try {
+                if (typeof sessionStorage === "undefined") {
+                    console.warn("⚠️ sessionStorage no disponible");
+                    return;
+                }
+
+                const contextoDetalle = sessionStorage.getItem(
+                    "contextoDetalleAsesor"
+                );
+                if (!contextoDetalle) {
+                    return;
+                }
+
+                const contexto = JSON.parse(contextoDetalle);
+                if (
+                    contexto &&
+                    contexto.datosAsesor &&
+                    contexto.datosAsesor.id === this.asesorId
+                ) {
+                    this.asesorNombre =
+                        contexto.datosAsesor.nombre || this.asesorNombre;
+                    this.oficinaNombre =
+                        contexto.datosAsesor.oficinaNombre ||
+                        this.oficinaNombre;
+                    this.claNombre =
+                        contexto.datosAsesor.claNombre || this.claNombre;
+                    console.log("✅ Datos recuperados de sessionStorage");
+                }
+            } catch (error) {
+                console.error(
+                    "⚠️ Error recuperando datos de sessionStorage:",
+                    error
+                );
+            }
         },
 
         afterRender: function () {
-            this.renderBasicStructure();
+            // ✅ GUARD: Evitar ejecución múltiple
+            if (this._afterRenderExecuted) {
+                console.log("⏭️ afterRender ya ejecutado, saltando...");
+                return;
+            }
+            this._afterRenderExecuted = true;
+
+            console.log("✅ afterRender ejecutándose por primera vez");
+
             this.setupEventListeners();
             this.agregarEstilosGraficos();
-            this.cargarChartJS();
+
+            // ✅ Solo cargar Chart.js si no se ha cargado
+            if (!this._chartJSLoadInitiated) {
+                this._chartJSLoadInitiated = true;
+                this.cargarChartJS();
+            }
         },
 
         agregarEstilosGraficos: function () {
+            // ✅ GUARD: Evitar agregar estilos múltiples veces
+            if (this._estilosAgregados) {
+                return;
+            }
+            this._estilosAgregados = true;
+
             const style = document.createElement("style");
             style.textContent = `
-        /* Tamaños estándar para gráficos */
-        .grafico-wrapper {
-            position: relative;
-            width: 100%;
-        }
-        
-        /* Gráficos donut/pie - altura estándar */
-        .grafico-donut {
-            height: 300px !important;
-        }
-        
-        /* Gráficos de barras horizontales (competencias) - altura estándar */
-        .grafico-competencias {
-            height: 450px !important;
-        }
-        
-        /* Gráficos de barras verticales - altura estándar */
-        .grafico-barras {
-            height: 400px !important;
-        }
-        
-        /* Gráficos de barras horizontales (medios contacto) - altura estándar */
-        .grafico-medios-contacto {
-            height: 450px !important;
-        }
-        
-        canvas {
-            display: block !important;
-            max-width: 100% !important;
-            height: 100% !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .grafico-donut {
-                height: 250px !important;
-            }
-            
-            .grafico-competencias {
-                height: 350px !important;
-            }
-            
-            .grafico-barras {
-                height: 300px !important;
-            }
-            
-            .grafico-medios-contacto {
-                height: 350px !important;
-            }
-        }
-    `;
+                .grafico-wrapper {
+                    position: relative;
+                    width: 100%;
+                }
+                
+                .grafico-donut {
+                    height: 300px !important;
+                }
+                
+                .grafico-competencias {
+                    height: 450px !important;
+                }
+                
+                .grafico-barras {
+                    height: 400px !important;
+                }
+                
+                .grafico-medios-contacto {
+                    height: 450px !important;
+                }
+                
+                canvas {
+                    display: block !important;
+                    max-width: 100% !important;
+                    height: 100% !important;
+                }
+                
+                @media (max-width: 768px) {
+                    .grafico-donut {
+                        height: 250px !important;
+                    }
+                    
+                    .grafico-competencias {
+                        height: 350px !important;
+                    }
+                    
+                    .grafico-barras {
+                        height: 300px !important;
+                    }
+                    
+                    .grafico-medios-contacto {
+                        height: 350px !important;
+                    }
+                }
+
+                #graficos-container {
+                    padding: 20px;
+                }
+                
+                .seccion-operaciones {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 25px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                    margin-bottom: 25px;
+                }
+                
+                .grafico-card {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 20px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+                    border: 1px solid #E6E6E6;
+                    height: 100%;
+                    margin-bottom: 25px;
+                }
+                
+                .graficos-secundarios {
+                    margin-top: 30px;
+                }
+                
+                .comentarios-wrapper {
+                    min-height: 200px;
+                    padding: 20px;
+                    background: #F9F9F9;
+                    border-radius: 8px;
+                    border: 1px solid #E6E6E6;
+                }
+            `;
             document.head.appendChild(style);
         },
 
         cargarChartJS: function () {
-            if (typeof Chart !== "undefined") {
-                this.chartLoaded = true;
-                this.cargarDatosAsesor();
+            console.log("📊 cargarChartJS ejecutado");
+
+            // ✅ GUARD: Si ya está cargado
+            if (this.chartLoaded) {
+                console.log("✅ Chart.js ya estaba cargado");
+                if (!this._datosYaCargados) {
+                    this._datosYaCargados = true;
+                    this.cargarDatosAsesor();
+                }
                 return;
             }
+
+            // ✅ GUARD: Si ya hay un script cargándose
+            if (this._chartJSLoading) {
+                console.log("⏳ Chart.js ya se está cargando...");
+                return;
+            }
+
+            if (typeof Chart !== "undefined") {
+                console.log("✅ Chart.js detectado globalmente");
+                this.chartLoaded = true;
+                if (!this._datosYaCargados) {
+                    this._datosYaCargados = true;
+                    this.cargarDatosAsesor();
+                }
+                return;
+            }
+
+            console.log("📥 Descargando Chart.js...");
+            this._chartJSLoading = true;
 
             const script = document.createElement("script");
             script.src =
                 "client/custom/modules/reportes-calidad-servicio/lib/chart.min.js";
+
             script.onload = () => {
+                console.log("✅ Chart.js cargado exitosamente");
+                this._chartJSLoading = false;
                 this.chartLoaded = true;
-                this.cargarDatosAsesor();
+
+                if (!this._datosYaCargados) {
+                    this._datosYaCargados = true;
+                    this.cargarDatosAsesor();
+                }
             };
+
             script.onerror = () => {
+                console.error("❌ Error cargando Chart.js");
+                this._chartJSLoading = false;
+                this.chartLoaded = false;
                 Espo.Ui.warning(
                     "No se pudieron cargar los gráficos. Mostrando solo datos."
                 );
-                this.chartLoaded = false;
-                this.cargarDatosAsesor();
+
+                if (!this._datosYaCargados) {
+                    this._datosYaCargados = true;
+                    this.cargarDatosAsesor();
+                }
             };
+
             document.head.appendChild(script);
         },
 
         cargarDatosAsesor: function () {
-            this.showLoadingState();
+            // ✅ GUARD: Evitar llamadas múltiples simultáneas
+            if (this._cargandoDatos) {
+                console.log("⏳ Ya hay una carga de datos en progreso");
+                return;
+            }
+
+            console.log("📊 Iniciando carga de datos del asesor");
+            this._cargandoDatos = true;
+            this.isLoading = true;
+
+            // ✅ Solo reRender si el DOM está listo
+            if (this.$el && this.$el.length) {
+                this.reRender();
+            }
 
             Promise.all([
                 this.cargarInfoAsesor(),
                 this.cargarEstadisticasAsesor(),
             ])
                 .then(() => {
+                    console.log("✅ Datos cargados exitosamente");
                     this.dataLoaded = true;
                     this.isLoading = false;
-                    this.updateUIWithData();
-                    this.renderCharts();
-                    this.cargarComentariosAsesor();
+                    this._cargandoDatos = false;
+
+                    // ✅ reRender para mostrar los datos
+                    if (this.$el && this.$el.length) {
+                        this.reRender();
+                    }
+
+                    // ✅ Esperar a que el DOM se actualice
+                    setTimeout(() => {
+                        if (!this._graficosRenderizados) {
+                            this._graficosRenderizados = true;
+                            this.renderCharts();
+                            this.cargarComentariosAsesor();
+                        }
+                    }, 200);
                 })
                 .catch((error) => {
-                    console.error("Error cargando datos:", error);
+                    console.error("❌ Error cargando datos:", error);
                     Espo.Ui.error("Error al cargar datos del asesor");
                     this.isLoading = false;
-                    this.updateUIWithData();
+                    this._cargandoDatos = false;
+
+                    if (this.$el && this.$el.length) {
+                        this.reRender();
+                    }
                 });
         },
 
-        renderBasicStructure: function () {
-            const html = `
-                <div class="container-fluid">
-                    <div class="row mb-4">
-                        <div class="col-md-12">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h1 class="h3 mb-0">
-                                        <i class="fas fa-chart-bar me-2" style="color: ${this.colores.primario};"></i>
-                                        Estadísticas Detalladas del Asesor
-                                    </h1>
-                                    <p class="mb-0" style="color: ${this.colores.grisMedio};">
-                                        <i class="fas fa-user-tie me-1" style="color: ${this.colores.secundario};"></i> 
-                                        Asesor: <strong id="nombre-asesor" style="color: ${this.colores.secundario};">Cargando...</strong>
-                                    </p>
-                                </div>
-                                <div>
-                                    <button class="btn btn-default btn-sm me-2" data-action="volver" style="border-color: ${this.colores.grisFondo}; color: ${this.colores.secundario};">
-                                        <i class="fas fa-arrow-left me-1"></i> Volver
-                                    </button>
-                                    <button class="btn btn-success btn-sm" data-action="exportar" style="background-color: ${this.colores.primario}; border-color: ${this.colores.primario};">
-                                        <i class="fas fa-file-excel me-1"></i> Exportar Reporte
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="estadisticas-container">
-                        <div class="text-center" style="padding: 60px;">
-                            <div class="spinner-large"></div>
-                            <h4 class="mt-3" style="color: ${this.colores.secundario};">Cargando estadísticas del asesor...</h4>
-                            <p style="color: ${this.colores.grisMedio};">Obteniendo información detallada</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            this.$el.html(html);
+        cargarInfoAsesor: function () {
+            return new Promise((resolve, reject) => {
+                Espo.Ajax.getRequest("CCustomerSurvey/action/getInfoAsesor", {
+                    asesorId: this.asesorId,
+                })
+                    .then((response) => {
+                        if (response && response.success && response.data) {
+                            this.infoAsesor = {
+                                nombre:
+                                    response.data.name ||
+                                    response.data.userName ||
+                                    this.infoAsesor.nombre,
+                                oficina:
+                                    response.data.oficina ||
+                                    this.infoAsesor.oficina,
+                                cla: response.data.cla || this.infoAsesor.cla,
+                                email: response.data.email,
+                                telefono: response.data.telefono,
+                            };
+                            console.log(
+                                "✅ Info del asesor cargada:",
+                                this.infoAsesor
+                            );
+                        }
+                        resolve();
+                    })
+                    .catch((error) => {
+                        console.error("⚠️ Error cargando info asesor:", error);
+                        resolve();
+                    });
+            });
         },
 
-        showLoadingState: function () {
-            const container = this.$el.find("#estadisticas-container");
-            if (container.length) {
-                container.html(`
-                    <div class="text-center" style="padding: 60px;">
-                        <div class="spinner-large"></div>
-                        <h4 class="mt-3" style="color: ${this.colores.secundario};">Cargando estadísticas del asesor...</h4>
-                        <p style="color: ${this.colores.grisMedio};">Obteniendo información detallada</p>
-                    </div>
-                `);
-            }
+        cargarEstadisticasAsesor: function () {
+            return new Promise((resolve, reject) => {
+                Espo.Ajax.getRequest("CCustomerSurvey/action/getStats", {
+                    asesorId: this.asesorId,
+                })
+                    .then((response) => {
+                        if (response.success && response.data) {
+                            this.stats = this.procesarEstadisticasReales(
+                                response.data
+                            );
+                            console.log(
+                                "✅ Estadísticas cargadas:",
+                                this.stats
+                            );
+                        } else {
+                            this.stats = this.getStatsIniciales();
+                        }
+                        resolve();
+                    })
+                    .catch((error) => {
+                        console.error("⚠️ Error cargando estadísticas:", error);
+                        this.stats = this.getStatsIniciales();
+                        resolve();
+                    });
+            });
         },
 
-        updateUIWithData: function () {
-            this.isLoading = false;
-            const nombreElement = this.$el.find("#nombre-asesor");
-            if (nombreElement.length) {
-                nombreElement.text(this.infoAsesor.nombre);
-            }
-
-            const container = this.$el.find("#estadisticas-container");
-            if (container.length) {
-                container.html(this.getEstadisticasHTML());
-            }
-        },
-
-        // En el método getEstadisticasHTML(), modifica las secciones de gráficos:
-        getEstadisticasHTML: function () {
-            const stats = this.stats;
-            const info = this.infoAsesor;
-            const colores = this.colores;
-
-            return `
-        <div class="reporte-container">
-            <!-- Header del asesor y estadísticas principales (mantener igual) -->
-            
-            <!-- Gráficos principales - CON TAMAÑOS UNIFICADOS -->
-            <div class="seccion-operaciones" style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 25px;">
-                <h2 class="titulo-seccion" style="text-align: center; font-size: 1.6em; font-weight: 700; color: ${colores.secundario}; margin: 0 0 25px 0; padding-bottom: 12px; border-bottom: 3px solid ${colores.primario};">
-                    <i class="fas fa-chart-pie me-2"></i>
-                    Distribución de Operaciones
-                </h2>
-                
-                <!-- Distribución de Operaciones -->
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="grafico-card" style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid ${colores.grisFondo}; height: 100%;">
-                            <h3 class="grafico-titulo" style="text-align: center; font-size: 1.1em; font-weight: 600; color: ${colores.secundario}; margin: 0 0 15px 0; padding-bottom: 12px; border-bottom: 2px solid ${colores.primario};">
-                                ¿Qué tipo de operación realizó?
-                            </h3>
-                            <div class="grafico-wrapper" style="height: 300px; position: relative;">
-                                <canvas id="chart-donut"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="grafico-card" style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid ${colores.grisFondo}; height: 100%;">
-                            <h3 class="grafico-titulo" style="text-align: center; font-size: 1.1em; font-weight: 600; color: ${colores.secundario}; margin: 0 0 15px 0; padding-bottom: 12px; border-bottom: 2px solid ${colores.primario};">
-                                ¿Cómo percibió el servicio prestado por el Asesor?
-                            </h3>
-                            <div class="grafico-wrapper" style="height: 300px; position: relative;">
-                                <canvas id="chart-calificacion-general"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Evaluación de competencias -->
-                <div class="graficos-secundarios" style="margin-top: 30px;">
-                    <div class="grafico-card">
-                        <h3 class="grafico-titulo" style="text-align: center; font-size: 1.1em; font-weight: 600; color: ${colores.secundario}; margin: 0 0 15px 0; padding-bottom: 12px; border-bottom: 2px solid ${colores.primario};">
-                            Evaluación del servicio prestado por el Asesor Inmobiliario
-                        </h3>
-                        <div class="grafico-wrapper" style="height: 450px; position: relative;">
-                            <canvas id="chart-competencias"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Evaluación de Satisfacción -->
-                <div class="graficos-secundarios" style="margin-top: 30px;">
-                    <div class="grafico-card">
-                        <h3 class="grafico-titulo" style="text-align: center; font-size: 1.1em; font-weight: 600; color: ${colores.secundario}; margin: 0 0 15px 0; padding-bottom: 12px; border-bottom: 2px solid ${colores.primario};">
-                            Evaluación de la satisfacción del servicio
-                        </h3>
-                        <div class="grafico-wrapper" style="height: 400px; position: relative;">
-                            <canvas id="chart-satisfaccion"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Medio de contacto -->
-                <div class="graficos-secundarios" style="margin-top: 30px;">
-                    <div class="grafico-card">
-                        <h3 class="grafico-titulo" style="text-align: center; font-size: 1.1em; font-weight: 600; color: ${colores.secundario}; margin: 0 0 15px 0; padding-bottom: 12px; border-bottom: 2px solid ${colores.primario};">
-                            ¿Por cuál medio se puso en contacto?
-                        </h3>
-                        <div class="grafico-wrapper" style="height: 450px; position: relative;">
-                            <canvas id="chart-medios-contacto"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Comentarios del asesor -->
-                <div class="graficos-secundarios" style="margin-top: 30px;">
-                    <div class="grafico-card">
-                        <h3 class="grafico-titulo" style="text-align: center; font-size: 1.1em; font-weight: 600; color: ${colores.secundario}; margin: 0 0 15px 0; padding-bottom: 12px; border-bottom: 2px solid ${colores.primario};">
-                            <i class="fas fa-comments me-2"></i>Comentarios de Clientes
-                        </h3>
-                        <div id="comentarios-container" class="comentarios-wrapper" style="min-height: 200px;">
-                            <div style="text-align: center; padding: 20px; color: ${colores.grisClaro};">
-                                <i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i>
-                                <p style="margin-top: 10px; font-size: 0.9em;">Cargando comentarios...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-        },
+        // ========================================================================
+        // SOLUCIÓN: Usar los IDs que espera el graficosManager
+        // Reemplaza la función renderCharts() en estadisticas-asesor.js
+        // ========================================================================
 
         renderCharts: function () {
+            if (this._renderizandoCharts) {
+                console.log("⏳ Ya hay un renderizado en progreso");
+                return;
+            }
+
+            console.log("🎨 Iniciando renderCharts");
+
+            // Validaciones
             if (typeof Chart === "undefined") {
+                console.error("❌ Chart.js no disponible");
                 this.showNoChartsMessage();
                 return;
             }
 
             if (!this.stats || this.stats.totalEncuestas === 0) {
+                console.log("ℹ️ No hay datos para mostrar");
                 this.showNoDataMessage();
                 return;
             }
 
-            // Dar tiempo al DOM para renderizarse
+            const container = this.$el.find("#graficos-container");
+            if (!container.length) {
+                console.error(
+                    "❌ Contenedor #graficos-container no encontrado"
+                );
+                return;
+            }
+
+            this._renderizandoCharts = true;
+
+            console.log("📊 Datos disponibles:", {
+                totalEncuestas: this.stats.totalEncuestas,
+                satisfaccionPromedio: this.stats.satisfaccionPromedio,
+                porcentajeRecomendacion: this.stats.porcentajeRecomendacion,
+            });
+
+            // ✅ USAR LOS IDS QUE ESPERA EL GRAFICOSMANAGER
+            container.html(`
+        <div class="seccion-operaciones mb-4">
+            <h3 style="color: #363438; margin-bottom: 25px;">
+                <i class="fas fa-chart-pie me-2" style="color: #B8A279;"></i>
+                Métricas Generales
+            </h3>
+            
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="stat-card" style="background: white; padding: 20px; border-radius: 8px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="color: #B8A279; font-size: 36px; font-weight: bold;">
+                            ${this.stats.totalEncuestas}
+                        </div>
+                        <div style="color: #666666; font-size: 14px; margin-top: 5px;">
+                            Total Encuestas
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card" style="background: white; padding: 20px; border-radius: 8px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="color: #B8A279; font-size: 36px; font-weight: bold;">
+                            ${this.stats.satisfaccionPromedio.toFixed(1)}/5.0
+                        </div>
+                        <div style="color: #666666; font-size: 14px; margin-top: 5px;">
+                            Satisfacción Promedio
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card" style="background: white; padding: 20px; border-radius: 8px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="color: #B8A279; font-size: 36px; font-weight: bold;">
+                            ${this.stats.porcentajeRecomendacion}%
+                        </div>
+                        <div style="color: #666666; font-size: 14px; margin-top: 5px;">
+                            Recomendación
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="grafico-card">
+                    <h4 style="color: #363438; margin-bottom: 20px;">
+                        <i class="fas fa-chart-pie me-2" style="color: #B8A279;"></i>
+                        Distribución de Operaciones
+                    </h4>
+                    <div class="grafico-wrapper grafico-donut">
+                        <canvas id="chart-donut"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="grafico-card">
+                    <h4 style="color: #363438; margin-bottom: 20px;">
+                        <i class="fas fa-star me-2" style="color: #B8A279;"></i>
+                        Promedio por Competencia
+                    </h4>
+                    <div class="grafico-wrapper grafico-competencias">
+                        <canvas id="chart-competencias"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="grafico-card">
+                    <h4 style="color: #363438; margin-bottom: 20px;">
+                        <i class="fas fa-chart-bar me-2" style="color: #B8A279;"></i>
+                        Distribución de Calificaciones
+                    </h4>
+                    <div class="grafico-wrapper grafico-barras">
+                        <canvas id="chart-satisfaccion"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="grafico-card">
+                    <h4 style="color: #363438; margin-bottom: 20px;">
+                        <i class="fas fa-thumbs-up me-2" style="color: #B8A279;"></i>
+                        Recomendación
+                    </h4>
+                    <div class="grafico-wrapper grafico-donut">
+                        <canvas id="chart-recomendacion"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="grafico-card">
+                    <h4 style="color: #363438; margin-bottom: 20px;">
+                        <i class="fas fa-phone me-2" style="color: #B8A279;"></i>
+                        Medios de Contacto
+                    </h4>
+                    <div class="grafico-wrapper grafico-medios-contacto">
+                        <canvas id="chart-medios-contacto"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `);
+
+            console.log("✅ HTML insertado con los IDs correctos");
+            console.log("📋 IDs de canvas esperados por graficosManager:");
+            console.log("  - chart-donut");
+            console.log("  - chart-competencias");
+            console.log("  - chart-satisfaccion");
+            console.log("  - chart-recomendacion");
+            console.log("  - chart-medios-contacto");
+
+            // Esperar a que el DOM se actualice
             setTimeout(() => {
-                if (
-                    this.graficosManager &&
-                    typeof this.graficosManager.renderCharts === "function"
-                ) {
+                try {
+                    // Verificar que los canvas existen
+                    const canvasIds = [
+                        "chart-donut",
+                        "chart-competencias",
+                        "chart-satisfaccion",
+                        "chart-recomendacion",
+                        "chart-medios-contacto",
+                    ];
+                    const canvasExisten = canvasIds.map((id) => {
+                        const exists = !!document.getElementById(id);
+                        console.log(
+                            `  ${exists ? "✅" : "❌"} ${id}: ${
+                                exists ? "encontrado" : "NO encontrado"
+                            }`
+                        );
+                        return exists;
+                    });
+
+                    if (!canvasExisten.every((e) => e)) {
+                        console.error(
+                            "❌ Algunos canvas no fueron encontrados"
+                        );
+                        this._renderizandoCharts = false;
+                        return;
+                    }
+
+                    // Asignar vista al manager
                     this.graficosManager.view = this;
+
+                    console.log("📊 Llamando a graficosManager.renderCharts()");
+
+                    // Renderizar gráficos usando el manager
                     this.graficosManager.renderCharts();
 
-                    // Forzar redibujado después de un momento
+                    console.log("✅ graficosManager.renderCharts() ejecutado");
+
+                    // Verificar charts creados
                     setTimeout(() => {
                         if (this.graficosManager.charts) {
-                            Object.values(this.graficosManager.charts).forEach(
-                                (chart) => {
-                                    if (
-                                        chart &&
-                                        typeof chart.resize === "function"
-                                    ) {
-                                        chart.resize();
-                                        chart.update();
-                                    }
-                                }
+                            const chartsCreados = Object.keys(
+                                this.graficosManager.charts
+                            );
+                            console.log(
+                                `✅ Gráficos creados (${chartsCreados.length}):`,
+                                chartsCreados
+                            );
+
+                            if (chartsCreados.length > 0) {
+                                this.actualizarGraficosUnaVez();
+                            } else {
+                                console.warn(
+                                    "⚠️ graficosManager no creó ningún gráfico"
+                                );
+                            }
+                        } else {
+                            console.error(
+                                "❌ graficosManager.charts no existe"
                             );
                         }
-                    }, 100);
+                        this._renderizandoCharts = false;
+                    }, 200);
+                } catch (error) {
+                    console.error("❌ Error renderizando charts:", error);
+                    console.error("Stack trace:", error.stack);
+                    this._renderizandoCharts = false;
                 }
-            }, 100);
+            }, 200);
+        },
+
+        actualizarGraficosUnaVez: function () {
+            if (this._graficosActualizados) {
+                return;
+            }
+
+            try {
+                if (this.graficosManager && this.graficosManager.charts) {
+                    console.log("🔄 Actualizando gráficos...");
+                    Object.values(this.graficosManager.charts).forEach(
+                        (chart) => {
+                            if (chart && typeof chart.resize === "function") {
+                                chart.resize();
+                                chart.update();
+                            }
+                        }
+                    );
+                    this._graficosActualizados = true;
+                    console.log("✅ Gráficos actualizados");
+                }
+            } catch (error) {
+                console.error("❌ Error actualizando gráficos:", error);
+            }
         },
 
         cargarComentariosAsesor: function () {
@@ -384,13 +681,11 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
 
         renderComentarios: function (comentarios) {
             const container = this.$el.find("#comentarios-container");
-            if (!container.length) {
-                return;
-            }
+            if (!container.length) return;
 
             if (!comentarios || comentarios.length === 0) {
                 container.html(`
-                    <div style="text-align: center; padding: 30px; color: ${this.colores.grisClaro};">
+                    <div style="text-align: center; padding: 30px; color: #999999;">
                         <i class="fas fa-comment-slash" style="font-size: 36px; margin-bottom: 12px;"></i>
                         <p style="font-size: 14px; margin: 0;">No hay comentarios disponibles</p>
                     </div>
@@ -398,44 +693,38 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 return;
             }
 
-            // LIMITAR A 10 COMENTARIOS COMO MÁXIMO
             const comentariosLimitados = comentarios.slice(0, 10);
-
-            // Ordenar comentarios por fecha (más recientes primero)
             comentariosLimitados.sort((a, b) => {
                 const dateA = new Date(a.fecha || a.createdAt || 0);
                 const dateB = new Date(b.fecha || b.createdAt || 0);
                 return dateB - dateA;
             });
 
-            // Contador simple
             const totalComentarios = comentarios.length;
-            const comentariosMostrados = comentariosLimitados.length;
 
             const html = `
                 <div class="comentarios-content">
-                    <!-- Contador simple -->
-                    <div class="comentarios-counter mb-3" style="
+                    <div class="comentarios-counter" style="
                         text-align: center;
-                        padding: 8px;
-                        color: ${this.colores.grisMedio};
+                        padding: 10px;
+                        color: #666666;
                         font-size: 0.9em;
-                        border-bottom: 1px solid ${this.colores.grisFondo};
+                        border-bottom: 1px solid #E6E6E6;
+                        margin-bottom: 15px;
                     ">
-                        <span style="font-weight: 600; color: ${
-                            this.colores.secundario
-                        };">${totalComentarios}</span> comentarios totales
+                        <span style="font-weight: 600; color: #363438;">
+                            <i class="fas fa-comments me-2"></i>${totalComentarios}
+                        </span> comentarios totales
                         ${
                             totalComentarios > 10
-                                ? ` · Mostrando los ${comentariosMostrados} más recientes`
+                                ? ` · Mostrando los 10 más recientes`
                                 : ""
                         }
                     </div>
 
-                    <!-- Lista de comentarios (máximo 10) -->
-                    <div class="comentarios-list">
+                    <div class="comentarios-list" style="max-height: 600px; overflow-y: auto;">
                         ${comentariosLimitados
-                            .map((comentario, index) => {
+                            .map((comentario) => {
                                 const fecha = new Date(
                                     comentario.fecha ||
                                         comentario.createdAt ||
@@ -455,93 +744,71 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                                 );
 
                                 return `
-                                    <div class="comentario-item" style="
-                                        background: ${this.colores.grisFondo};
-                                        border-left: 3px solid ${this.colores.primario};
-                                        border-radius: 6px;
-                                        padding: 12px 15px;
-                                        margin-bottom: 10px;
-                                        transition: all 0.2s ease;
+                                <div class="comentario-item-compacto" style="
+                                    background: #F5F5F5;
+                                    border-left: 3px solid #B8A279;
+                                    border-radius: 6px;
+                                    padding: 12px 15px;
+                                    margin-bottom: 10px;
+                                    transition: all 0.2s ease;
+                                ">
+                                    <div class="comentario-texto" style="
+                                        color: #1A1A1A;
+                                        line-height: 1.4;
+                                        font-size: 0.9em;
+                                        margin-bottom: 8px;
+                                        text-align: left;
                                     ">
-                                        <!-- Comentario -->
-                                        <div class="comentario-body mb-2">
-                                            <p style="
-                                                color: ${this.colores.grisOscuro};
-                                                line-height: 1.5;
-                                                margin: 0;
-                                                font-size: 0.95em;
-                                                white-space: pre-wrap;
-                                                word-wrap: break-word;
-                                            ">
-                                                ${comentarioTexto}
-                                            </p>
-                                        </div>
-                                        
-                                        <!-- Fecha -->
-                                        <div class="comentario-footer" style="
-                                            display: flex;
-                                            justify-content: flex-end;
-                                            font-size: 0.8em;
-                                            color: ${this.colores.grisClaro};
-                                        ">
-                                            <i class="fas fa-calendar me-1"></i>
-                                            <span class="comentario-fecha">${fechaFormateada}</span>
-                                        </div>
+                                        ${comentarioTexto}
                                     </div>
-                                `;
+                                    
+                                    <div class="comentario-footer" style="
+                                        display: flex;
+                                        justify-content: space-between;
+                                        align-items: center;
+                                        font-size: 0.75em;
+                                        color: #999999;
+                                    ">
+                                        <span>
+                                            <i class="fas fa-user me-1"></i>
+                                            ${
+                                                comentario.clientName ||
+                                                "Cliente Anónimo"
+                                            }
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-calendar me-1"></i>
+                                            ${fechaFormateada}
+                                        </span>
+                                    </div>
+                                </div>
+                            `;
                             })
                             .join("")}
                     </div>
 
-                    <!-- Nota si hay más de 10 comentarios -->
                     ${
                         totalComentarios > 10
                             ? `
-                        <div class="comentarios-notice mt-3" style="
+                        <div class="comentarios-notice" style="
                             text-align: center;
-                            padding: 8px;
-                            color: ${this.colores.grisClaro};
-                            font-size: 0.85em;
+                            padding: 10px;
+                            color: #999999;
+                            font-size: 0.8em;
                             font-style: italic;
-                            border-top: 1px solid ${this.colores.grisFondo};
+                            border-top: 1px solid #E6E6E6;
+                            margin-top: 10px;
                         ">
                             <i class="fas fa-info-circle me-1"></i>
-                            Mostrando los ${comentariosMostrados} comentarios más recientes de ${totalComentarios} totales
+                            Mostrando los 10 comentarios más recientes de ${totalComentarios} totales
                         </div>
-                        `
+                    `
                             : ""
                     }
                 </div>
             `;
 
             container.html(html);
-
-            // Agregar efectos hover ligeros
-            this.$el
-                .find(".comentario-item")
-                .hover(
-                    function () {
-                        $(this).css({
-                            transform: "translateY(-1px)",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                            backgroundColor: "rgba(184, 162, 121, 0.05)",
-                        });
-                    },
-                    function () {
-                        $(this).css({
-                            transform: "translateY(0)",
-                            boxShadow: "none",
-                            backgroundColor:
-                                $(this).data("original-bg") || "#E6E6E6",
-                        });
-                    }
-                )
-                .each(function () {
-                    $(this).data(
-                        "original-bg",
-                        $(this).css("background-color")
-                    );
-                });
         },
 
         escapeHtml: function (text) {
@@ -552,7 +819,61 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         },
 
         volverAComparacion: function () {
+            console.log("🔙 Botón Volver presionado");
+
+            const contextoDetalle = this.obtenerContextoDetalle();
+            if (contextoDetalle) {
+                if (
+                    contextoDetalle.desde === "comparacion-asesores" &&
+                    contextoDetalle.oficinaId
+                ) {
+                    sessionStorage.removeItem("contextoDetalleAsesor");
+                    this.getRouter().navigate(
+                        `#Principal/asesores/${contextoDetalle.oficinaId}`,
+                        { trigger: true }
+                    );
+                    return;
+                }
+            }
+
+            if (this.options.previousRoute) {
+                this.getRouter().navigate(this.options.previousRoute, {
+                    trigger: true,
+                });
+                return;
+            }
+
+            if (this.options.oficinaId) {
+                this.getRouter().navigate(
+                    `#Principal/asesores/${this.options.oficinaId}`,
+                    { trigger: true }
+                );
+                return;
+            }
+
+            if (this.options.claId) {
+                this.getRouter().navigate(
+                    `#Principal/oficinas/${this.options.claId}`,
+                    { trigger: true }
+                );
+                return;
+            }
+
             this.getRouter().navigate("#Principal", { trigger: true });
+        },
+
+        obtenerContextoDetalle: function () {
+            try {
+                const contexto = sessionStorage.getItem(
+                    "contextoDetalleAsesor"
+                );
+                if (contexto) {
+                    return JSON.parse(contexto);
+                }
+            } catch (error) {
+                console.error("Error cargando contexto detalle:", error);
+            }
+            return null;
         },
 
         exportarReporte: function () {
@@ -589,20 +910,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
             Espo.Ui.success("Reporte exportado exitosamente");
         },
 
-        onRemove: function () {
-            this.$el.off("click", '[data-action="volver"]');
-            this.$el.off("click", '[data-action="exportar"]');
-
-            if (
-                this.graficosManager &&
-                typeof this.graficosManager.destroyCharts === "function"
-            ) {
-                try {
-                    this.graficosManager.destroyCharts();
-                } catch (error) {}
-            }
-        },
-
         setupEventListeners: function () {
             this.$el.on("click", '[data-action="volver"]', () =>
                 this.volverAComparacion()
@@ -610,68 +917,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
             this.$el.on("click", '[data-action="exportar"]', () =>
                 this.exportarReporte()
             );
-        },
-
-        cargarInfoAsesor: function () {
-            return new Promise((resolve, reject) => {
-                // Primero obtener la información básica del usuario
-                Espo.Ajax.getRequest(`User/${this.asesorId}`)
-                    .then((user) => {
-                        this.infoAsesor.nombre =
-                            user.name || user.userName || "Usuario sin nombre";
-
-                        // Luego obtener información adicional del asesor desde el endpoint específico
-                        return Espo.Ajax.getRequest(
-                            "CCustomerSurvey/action/getInfoAsesor",
-                            {
-                                asesorId: this.asesorId,
-                            }
-                        );
-                    })
-                    .then((response) => {
-                        if (response && response.success && response.data) {
-                            this.infoAsesor.oficina =
-                                response.data.oficina || "No asignada";
-                            this.infoAsesor.cla =
-                                response.data.cla || "No asignado";
-                        } else {
-                            // Si no hay respuesta, intentar obtener de otros campos
-                            this.infoAsesor.oficina = "No disponible";
-                            this.infoAsesor.cla = "No disponible";
-                        }
-                        resolve();
-                    })
-                    .catch((error) => {
-                        console.error("Error cargando info asesor:", error);
-                        this.infoAsesor.nombre = "Asesor " + this.asesorId;
-                        this.infoAsesor.oficina = "No disponible";
-                        this.infoAsesor.cla = "No disponible";
-                        resolve();
-                    });
-            });
-        },
-
-        cargarEstadisticasAsesor: function () {
-            return new Promise((resolve, reject) => {
-                Espo.Ajax.getRequest("CCustomerSurvey/action/getStats", {
-                    asesorId: this.asesorId,
-                })
-                    .then((response) => {
-                        if (response.success && response.data) {
-                            this.stats = this.procesarEstadisticasReales(
-                                response.data
-                            );
-                        } else {
-                            this.stats = this.getStatsIniciales();
-                        }
-                        resolve();
-                    })
-                    .catch((error) => {
-                        console.error("Error cargando estadísticas:", error);
-                        this.stats = this.getStatsIniciales();
-                        resolve();
-                    });
-            });
         },
 
         procesarEstadisticasReales: function (datosBackend) {
@@ -708,7 +953,7 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         },
 
         showNoDataMessage: function () {
-            const container = this.$el.find("#estadisticas-container");
+            const container = this.$el.find("#graficos-container");
             if (container.length) {
                 container.html(`
                     <div class="text-center" style="padding: 60px;">
@@ -723,17 +968,46 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         },
 
         showNoChartsMessage: function () {
-            const chartContainers = this.$el.find(".grafico-wrapper");
-            chartContainers.each((index, container) => {
-                if (!$(container).find(".no-chart-message").length) {
-                    $(container).html(`
-                        <div class="no-chart-message" style="text-align: center; padding: 40px; color: ${this.colores.grisClaro};">
-                            <i class="fas fa-exclamation-circle" style="font-size: 36px; margin-bottom: 15px;"></i>
-                            <p style="font-size: 14px; margin: 0;">No se pueden mostrar los gráficos</p>
-                        </div>
-                    `);
+            const container = this.$el.find("#graficos-container");
+            if (container.length) {
+                container.html(`
+                    <div class="text-center" style="padding: 40px; color: ${this.colores.grisClaro};">
+                        <i class="fas fa-exclamation-circle" style="font-size: 36px; margin-bottom: 15px;"></i>
+                        <p style="font-size: 14px; margin: 0;">No se pueden mostrar los gráficos</p>
+                    </div>
+                `);
+            }
+        },
+
+        onRemove: function () {
+            console.log("🧹 Limpiando vista...");
+
+            // ✅ Resetear todos los flags
+            this._afterRenderExecuted = false;
+            this._chartJSLoadInitiated = false;
+            this._chartJSLoading = false;
+            this._datosYaCargados = false;
+            this._cargandoDatos = false;
+            this._graficosRenderizados = false;
+            this._renderizandoCharts = false;
+            this._graficosActualizados = false;
+            this._estilosAgregados = false;
+
+            this.$el.off("click", '[data-action="volver"]');
+            this.$el.off("click", '[data-action="exportar"]');
+
+            if (
+                this.graficosManager &&
+                typeof this.graficosManager.destroyCharts === "function"
+            ) {
+                try {
+                    this.graficosManager.destroyCharts();
+                } catch (error) {
+                    console.error("Error destruyendo charts:", error);
                 }
-            });
+            }
+
+            console.log("✅ Vista limpiada");
         },
     });
 });
