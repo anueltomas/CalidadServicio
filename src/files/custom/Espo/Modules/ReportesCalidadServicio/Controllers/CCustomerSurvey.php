@@ -1464,27 +1464,9 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             
             $resultados = [];
             
+            // ✅ MODIFICACIÓN IMPORTANTE: ELIMINAR el filtro que excluye otros asesores
+            // Los asesores regulares PUEDEN ver todos los asesores de su oficina
             foreach ($userIds as $asesorId) {
-                // ✅ MODIFICACIÓN: Solo filtrar si es asesor regular sin otros roles
-                if ($userInfo['type'] === 'regular') {
-                    // Verificar si tiene roles de gestión
-                    $rolesLower = array_map('strtolower', $userInfo['roles'] ?? []);
-                    $managementRoles = ['afiliado', 'gerente', 'director', 'coordinador', 'casa nacional'];
-                    $hasManagementRole = false;
-                    
-                    foreach ($managementRoles as $role) {
-                        if (in_array($role, $rolesLower)) {
-                            $hasManagementRole = true;
-                            break;
-                        }
-                    }
-                    
-                    // Si es asesor regular SIN roles de gestión, solo mostrar su info
-                    if (!$hasManagementRole && $asesorId !== $userId) {
-                        continue; // ← Esto hace que se salte otros asesores para asesores regulares puros
-                    }
-                }
-                
                 try {
                     $nombre = $this->getNombreUsuario($asesorId);
                     
@@ -1517,7 +1499,10 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 'success' => true,
                 'data' => $resultados,
                 'oficinaInfo' => $this->getOficinaInfo($entityManager, $oficinaId),
-                'totalAsesores' => count($resultados)
+                'totalAsesores' => count($resultados),
+                // ✅ AGREGAR: Información del usuario actual para frontend
+                'usuarioActualId' => $userId,
+                'esAsesorRegular' => ($userInfo['type'] === 'regular' && !$this->hasRole($userInfo, 'admin'))
             ];
             
         } catch (\Exception $e) {
