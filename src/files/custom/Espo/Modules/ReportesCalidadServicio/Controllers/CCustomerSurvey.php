@@ -146,9 +146,13 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         
         $userId = $userInfo['id'];
         $userType = $userInfo['type'] ?? 'regular';
+        $userRoles = $userInfo['roles'] ?? [];
         $userCLA = $userInfo['claId'] ?? null;
         $userOficina = $userInfo['oficinaId'] ?? null;
         $isAdmin = $userInfo['isAdmin'] ?? false;
+        
+        // Convertir roles a minúsculas para comparación
+        $rolesLower = array_map('strtolower', $userRoles);
         
         // ✅ REGLA 1: TODOS pueden ver Territorio Nacional (CLA0 o sin filtro CLA)
         if ($claId === 'CLA0' || empty($claId)) {
@@ -156,33 +160,40 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
         
         // ✅ REGLA 2: Admin y Casa Nacional pueden ver TODO
-        if ($isAdmin || $this->hasRole($userInfo, 'casa nacional')) {
+        if ($isAdmin || in_array('casa nacional', $rolesLower)) {
             return true;
         }
         
-        // ✅ REGLA 3: Gerentes, Directores, Coordinadores, Afiliados
-        $managementRoles = ['gerente', 'director', 'coordinador', 'afiliado'];
+        // ✅ REGLA 3: Roles con permisos especiales (Afiliado, Gerente, Director, Coordinador)
+        $managementRoles = ['afiliado', 'gerente', 'director', 'coordinador'];
+        $hasManagementRole = false;
+        
         foreach ($managementRoles as $role) {
-            if ($this->hasRole($userInfo, $role)) {
-                // Pueden ver su CLA, su oficina, y asesores de su oficina
-                if ($claId && $userCLA && $claId === $userCLA) {
-                    return true;
-                }
-                if ($oficinaId && $userOficina && $oficinaId === $userOficina) {
-                    return true;
-                }
-                if ($asesorId && $userOficina) {
-                    $asesorOficina = $this->getOficinaDelAsesor($asesorId);
-                    if ($asesorOficina && $asesorOficina === $userOficina) {
-                        return true;
-                    }
-                }
-                return false;
+            if (in_array($role, $rolesLower)) {
+                $hasManagementRole = true;
+                break;
             }
         }
         
-        // ✅ REGLA 4: Asesores Regulares
-        if ($userType === 'regular') {
+        if ($hasManagementRole) {
+            // Pueden ver su CLA, su oficina, y asesores de su oficina
+            if ($claId && $userCLA && $claId === $userCLA) {
+                return true;
+            }
+            if ($oficinaId && $userOficina && $oficinaId === $userOficina) {
+                return true;
+            }
+            if ($asesorId && $userOficina) {
+                $asesorOficina = $this->getOficinaDelAsesor($asesorId);
+                if ($asesorOficina && $asesorOficina === $userOficina) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // ✅ REGLA 4: Asesores Regulares (type: 'regular' y rol 'asesor')
+        if ($userType === 'regular' && in_array('asesor', $rolesLower)) {
             // Pueden ver su CLA
             if ($claId && $userCLA && $claId === $userCLA) {
                 return true;
@@ -218,26 +229,29 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             }
             
             // ✅ LOG para debugging
-            $GLOBALS['log']->info('getUserInfo - Usuario: ' . $userId . ', Oficina: ' . ($userInfo['oficinaId'] ?? 'null'));
+            $GLOBALS['log']->info('getUserInfo - Usuario: ' . $userId . 
+                                ', Type: ' . ($userInfo['type'] ?? 'null') . 
+                                ', Oficina: ' . ($userInfo['oficinaId'] ?? 'null'));
             
             return [
                 'success' => true,
                 'data' => [
-                    'esAdministrativo' => $userInfo['isAdmin'],
+                    'esAdministrativo' => $userInfo['type'] === 'admin', // ← IMPORTANTE: usar type
                     'esCasaNacional' => $this->hasRole($userInfo, 'casa nacional'),
                     'esGerente' => $this->hasRole($userInfo, 'gerente'),
                     'esDirector' => $this->hasRole($userInfo, 'director'),
                     'esCoordinador' => $this->hasRole($userInfo, 'coordinador'),
                     'esAfiliado' => $this->hasRole($userInfo, 'afiliado'),
-                    'esAsesorRegular' => $userInfo['type'] === 'regular',
-                    'puedeImportar' => $userInfo['isAdmin'],
+                    'esAsesorRegular' => $userInfo['type'] === 'regular' && !$this->hasRole($userInfo, 'admin'),
+                    'puedeImportar' => $userInfo['type'] === 'admin', // ← SOLO admin puede importar
                     'claUsuario' => $userInfo['claId'],
                     // ✅ CRÍTICO: Verificar que oficinaId sea válido
                     'oficinaUsuario' => $userInfo['oficinaId'] && $this->esTeamIdValido($userInfo['oficinaId']) 
                         ? $userInfo['oficinaId'] 
                         : null,
                     'usuarioId' => $userInfo['id'],
-                    'userName' => $userInfo['name']
+                    'userName' => $userInfo['name'],
+                    'userType' => $userInfo['type'] // ← Agregar type para debugging
                 ]
             ];
             
@@ -333,11 +347,41 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
 
     protected function getNombreUsuario($userId)
     {
-        $userInfo = $this->getUserFullInfo($userId);
-        if (!$userInfo) {
+        try {
+            $entityManager = $this->getContainer()->get('entityManager');
+            $pdo = $entityManager->getPDO();
+            
+            $sql = "SELECT user_name, first_name, last_name 
+                    FROM user 
+                    WHERE id = :userId 
+                    AND deleted = 0 
+                    LIMIT 1";
+            $sth = $pdo->prepare($sql);
+            $sth->bindValue(':userId', $userId);
+            $sth->execute();
+            $usuario = $sth->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$usuario) {
+                return 'Asesor #' . substr($userId, 0, 8);
+            }
+            
+            $firstName = $usuario['first_name'] ?? '';
+            $lastName = $usuario['last_name'] ?? '';
+            $userName = $usuario['user_name'] ?? '';
+            
+            $nombreCompleto = trim($firstName . ' ' . $lastName);
+            if (empty($nombreCompleto)) {
+                $nombreCompleto = $userName;
+            }
+            if (empty($nombreCompleto)) {
+                $nombreCompleto = 'Usuario #' . substr($userId, 0, 8);
+            }
+            
+            return $nombreCompleto;
+            
+        } catch (\Exception $e) {
             return 'Asesor #' . substr($userId, 0, 8);
         }
-        return $userInfo['name'] ?: 'Asesor #' . substr($userId, 0, 8);
     }
 
     // ✅ FUNCIÓN CORREGIDA: Solo una versión de getActionGetInfoAsesor
@@ -446,13 +490,14 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 throw new Error("No se pudo obtener entityManager");
             }
 
-            // Validar solo si es admin
+            // ✅ MODIFICACIÓN: Validar que el usuario sea tipo ADMIN
             $user = $this->getContainer()->get('user');
+            $userInfo = $this->getUserFullInfo($user->get('id'));
             
-            if (!$user->isAdmin()) {
+            if (!$userInfo || $userInfo['type'] !== 'admin') {
                 return [
                     'success' => false,
-                    'error' => 'No tiene permisos para importar encuestas',
+                    'error' => 'No tiene permisos para importar encuestas. Solo usuarios Administradores pueden realizar esta acción.',
                     'total' => 0,
                     'procesadas' => 0,
                     'duplicadas' => 0,
@@ -1420,10 +1465,25 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             $resultados = [];
             
             foreach ($userIds as $asesorId) {
-                // ✅ Para asesor regular, solo mostrar su información
-                /* if ($userInfo['type'] === 'regular' && $asesorId !== $userId) {
-                    continue;
-                } */
+                // ✅ MODIFICACIÓN: Solo filtrar si es asesor regular sin otros roles
+                if ($userInfo['type'] === 'regular') {
+                    // Verificar si tiene roles de gestión
+                    $rolesLower = array_map('strtolower', $userInfo['roles'] ?? []);
+                    $managementRoles = ['afiliado', 'gerente', 'director', 'coordinador', 'casa nacional'];
+                    $hasManagementRole = false;
+                    
+                    foreach ($managementRoles as $role) {
+                        if (in_array($role, $rolesLower)) {
+                            $hasManagementRole = true;
+                            break;
+                        }
+                    }
+                    
+                    // Si es asesor regular SIN roles de gestión, solo mostrar su info
+                    if (!$hasManagementRole && $asesorId !== $userId) {
+                        continue; // ← Esto hace que se salte otros asesores para asesores regulares puros
+                    }
+                }
                 
                 try {
                     $nombre = $this->getNombreUsuario($asesorId);
@@ -1832,33 +1892,24 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             
             $entityManager = $this->getContainer()->get('entityManager');
             
-            // Obtener usuarios de la oficina
-            $userIds = $this->getUsuariosPorOficina($entityManager, $oficinaId);
-            
-            if (empty($userIds)) {
-                return [
-                    'success' => true,
-                    'data' => []
-                ];
-            }
-            
-            // Obtener información de los usuarios (SIN email - basado en código funcional)
+            // Obtener TODOS los usuarios de la oficina
             $pdo = $entityManager->getPDO();
             
-            $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-            $sql = "SELECT id, user_name, first_name, last_name 
-                    FROM user 
-                    WHERE id IN ($placeholders)
-                    AND deleted = 0
-                    AND is_active = 1
-                    ORDER BY first_name, last_name";
+            $sql = "SELECT DISTINCT u.id, u.user_name, u.first_name, u.last_name 
+                    FROM user u
+                    INNER JOIN team_user tu ON u.id = tu.user_id
+                    WHERE tu.team_id = :oficinaId
+                    AND u.deleted = 0
+                    AND u.is_active = 1
+                    ORDER BY u.first_name, u.last_name, u.user_name";
             
             $sth = $pdo->prepare($sql);
-            $sth->execute($userIds);
+            $sth->bindValue(':oficinaId', $oficinaId);
+            $sth->execute();
             
             $asesores = [];
             while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
-                // Construir nombre
+                // Construir nombre completo
                 $firstName = $row['first_name'] ?? '';
                 $lastName = $row['last_name'] ?? '';
                 $userName = $row['user_name'] ?? '';
@@ -1871,7 +1922,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                     $fullName = 'Usuario #' . substr($row['id'], 0, 8);
                 }
                 
-                // Verificar si tiene encuestas
+                // ✅ MODIFICACIÓN: Contar encuestas pero INCLUIR igual al usuario
                 $encuestas = $entityManager->getRepository('CCustomerSurvey')
                     ->where([
                         'assignedUserId' => $row['id'],
@@ -1880,23 +1931,19 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                     ])
                     ->count();
                 
-                if ($encuestas > 0) {
-                    $asesores[] = [
-                        'id' => $row['id'],
-                        'name' => $fullName,
-                        'encuestas' => $encuestas
-                    ];
-                }
+                // ✅ INCLUIR TODOS los usuarios, no solo los que tienen encuestas
+                $asesores[] = [
+                    'id' => $row['id'],
+                    'name' => $fullName,
+                    'userName' => $userName,
+                    'encuestas' => $encuestas
+                ];
             }
-            
-            // Ordenar por nombre
-            usort($asesores, function($a, $b) {
-                return strcmp($a['name'], $b['name']);
-            });
             
             return [
                 'success' => true,
-                'data' => $asesores
+                'data' => $asesores,
+                'total' => count($asesores)
             ];
             
         } catch (\Exception $e) {

@@ -27,7 +27,13 @@ define("reportes-calidad-servicio:views/principal", [
 
         setup: function () {
             var user = this.getUser();
-            this.esAdmin = user.isAdmin();
+
+            // Obtener el tipo de usuario
+            this.userType = user.get("type");
+            this.esAdmin = this.userType === "admin";
+
+            console.log("👤 Tipo de usuario detectado:", this.userType);
+            console.log("👑 ¿Es admin?:", this.esAdmin);
 
             // 1. PermisosManager
             if (typeof PermisosManager === "function") {
@@ -36,10 +42,23 @@ define("reportes-calidad-servicio:views/principal", [
             } else {
                 this.permisosManager = {
                     cargarPermisosUsuario: function () {
-                        return Promise.reject("Módulo no cargado");
-                    },
+                        // Si es admin, devolver permisos de admin
+                        if (this.view && this.view.esAdmin) {
+                            return Promise.resolve({
+                                esAdministrativo: true,
+                                puedeImportar: true,
+                            });
+                        }
+                        return Promise.resolve({
+                            esAdministrativo: false,
+                            puedeImportar: false,
+                        });
+                    }.bind(this),
                     getPermisos: function () {
-                        return { puedeImportar: false, permisosListo: false };
+                        return {
+                            puedeImportar: this.view.esAdmin,
+                            permisosListo: true,
+                        };
                     },
                     aplicarRestriccionesUI: function () {},
                 };
@@ -150,7 +169,8 @@ define("reportes-calidad-servicio:views/principal", [
 
         data: function () {
             return {
-                esAdmin: this.esAdmin,
+                esAdmin: this.esAdmin, // Usar la propiedad directa
+                puedeImportar: this.esAdmin, // Solo admin puede importar
             };
         },
 
@@ -175,18 +195,43 @@ define("reportes-calidad-servicio:views/principal", [
         },
 
         cargarPermisosYFiltros: function () {
-            this.permisosManager
-                .cargarPermisosUsuario()
-                .then(
-                    function (permisos) {
-                        this.filtrosCLAManager.cargarFiltros();
-                    }.bind(this)
-                )
-                .catch(
-                    function (error) {
-                        this.estadisticasManager.loadStatistics();
-                    }.bind(this)
-                );
+            // Verificar directamente si es admin
+            console.log("🔍 Verificación directa - Es admin:", this.esAdmin);
+
+            // Si el módulo de permisos está disponible, usarlo
+            if (
+                this.permisosManager &&
+                typeof this.permisosManager.cargarPermisosUsuario === "function"
+            ) {
+                this.permisosManager
+                    .cargarPermisosUsuario()
+                    .then(
+                        function (permisos) {
+                            console.log(
+                                "✅ Permisos cargados en principal.js:",
+                                permisos
+                            );
+                            // Forzar que solo los admin puedan importar
+                            permisos.puedeImportar = this.esAdmin;
+                            console.log(
+                                "🔍 ¿Puede importar (forzado por tipo admin)?:",
+                                permisos.puedeImportar
+                            );
+
+                            this.filtrosCLAManager.cargarFiltros();
+                        }.bind(this)
+                    )
+                    .catch(
+                        function (error) {
+                            console.error("❌ Error cargando permisos:", error);
+                            // En caso de error, usar la verificación directa
+                            this.estadisticasManager.loadStatistics();
+                        }.bind(this)
+                    );
+            } else {
+                // Si no hay módulo de permisos, usar verificación directa
+                this.filtrosCLAManager.cargarFiltros();
+            }
         },
 
         setupEventListeners: function () {

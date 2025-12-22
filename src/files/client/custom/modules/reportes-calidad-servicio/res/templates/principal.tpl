@@ -64,9 +64,9 @@
             </div>
         </div>
     </div>
-    
+
     {{#if esAdmin}}
-    <div class="file-input-section panel panel-default">
+    <div class="file-input-section panel panel-default admin-only">
         <div class="panel-body">
             <div class="file-input-group">
                 <label class="file-input-label" for="csv-file-input">
@@ -108,6 +108,7 @@
         </div>
     </div>
     {{/if}}
+    
 
     <div id="dynamic-content-container">
         <!-- Contenido dinámico -->

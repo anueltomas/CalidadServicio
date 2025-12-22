@@ -22,7 +22,6 @@ define("reportes-calidad-servicio:views/modules/permisos", [], function () {
         return new Promise(function (resolve, reject) {
             var user = self.view.getUser();
 
-            // ✅ USAR NUEVO ENDPOINT OPTIMIZADO
             Espo.Ajax.getRequest("CCustomerSurvey/action/getUserInfo", {
                 userId: user.id,
             })
@@ -30,16 +29,30 @@ define("reportes-calidad-servicio:views/modules/permisos", [], function () {
                     if (response.success && response.data) {
                         var userInfo = response.data;
 
+                        // ✅ DETERMINAR PERMISOS BASADOS EN TYPE Y ROLES
+                        const esAdminType = userInfo.userType === "admin";
+
+                        // Un asesor regular puro es: type: 'regular' y NO tiene roles de gestión
+                        const tieneRolesGestion =
+                            userInfo.esGerente ||
+                            userInfo.esCoordinador ||
+                            userInfo.esDirector ||
+                            userInfo.esAfiliado ||
+                            userInfo.esCasaNacional;
+
+                        const esAsesorRegularPuro =
+                            userInfo.userType === "regular" &&
+                            !tieneRolesGestion;
+
                         self.permisos = {
-                            esAdministrativo:
-                                userInfo.esAdministrativo || false,
+                            esAdministrativo: esAdminType, // ← SOLO true si type es 'admin'
                             esCasaNacional: userInfo.esCasaNacional || false,
                             esGerente: userInfo.esGerente || false,
                             esDirector: userInfo.esDirector || false,
                             esCoordinador: userInfo.esCoordinador || false,
                             esAfiliado: userInfo.esAfiliado || false,
-                            esAsesorRegular: userInfo.esAsesorRegular || false,
-                            puedeImportar: userInfo.puedeImportar || false,
+                            esAsesorRegular: esAsesorRegularPuro,
+                            puedeImportar: esAdminType, // ← SOLO admin puede importar
                             claUsuario: userInfo.claUsuario || null,
                             oficinaUsuario: userInfo.oficinaUsuario || null,
                             usuarioId: userInfo.usuarioId || user.id,
@@ -47,7 +60,7 @@ define("reportes-calidad-servicio:views/modules/permisos", [], function () {
                         };
 
                         console.log(
-                            "🔐 Permisos cargados desde backend:",
+                            "🔐 Permisos definitivos cargados:",
                             self.permisos
                         );
                         self.aplicarRestriccionesUI();
@@ -69,13 +82,44 @@ define("reportes-calidad-servicio:views/modules/permisos", [], function () {
     PermisosManager.prototype.aplicarRestriccionesUI = function () {
         if (!this.view.$el) return;
 
+        // ✅ Ocultar/Mostrar sección de importación CSV
         var fileSection = this.view.$el.find(".file-input-section");
+        var importButton = this.view.$el.find('[data-action="import"]');
+
         if (fileSection.length) {
             if (!this.permisos.puedeImportar) {
                 fileSection.hide();
             } else {
                 fileSection.show();
             }
+        }
+
+        if (importButton.length) {
+            if (!this.permisos.puedeImportar) {
+                importButton.hide();
+            } else {
+                importButton.show();
+            }
+        }
+
+        // ✅ También ocultar botones de comparación si no tiene permisos
+        var btnCompararOficinas = this.view.$el.find("#btn-comparar-oficinas");
+        var btnCompararAsesores = this.view.$el.find("#btn-comparar-asesores");
+
+        // ✅ CORRECCIÓN: Usar this.puedeVerComparacionOficinas() - ES UNA FUNCIÓN
+        if (
+            btnCompararOficinas.length &&
+            !this.puedeVerComparacionOficinas() // ← CORREGIDO: this.puedeVerComparacionOficinas()
+        ) {
+            btnCompararOficinas.hide();
+        }
+
+        // ✅ CORRECCIÓN: Usar this.puedeVerComparacionAsesores() - ES UNA FUNCIÓN
+        if (
+            btnCompararAsesores.length &&
+            !this.puedeVerComparacionAsesores() // ← CORREGIDO: this.puedeVerComparacionAsesores()
+        ) {
+            btnCompararAsesores.hide();
         }
     };
 
@@ -157,6 +201,28 @@ define("reportes-calidad-servicio:views/modules/permisos", [], function () {
             return null; // Puede ver todas
         }
         return this.permisos.oficinaUsuario;
+    };
+
+    PermisosManager.prototype.puedeVerTodasLasOficinas = function () {
+        return (
+            this.permisos.esAdministrativo ||
+            this.permisos.esCasaNacional ||
+            this.permisos.esGerente ||
+            this.permisos.esDirector ||
+            this.permisos.esCoordinador ||
+            this.permisos.esAfiliado
+        );
+    };
+
+    PermisosManager.prototype.puedeVerTodosLosAsesores = function () {
+        return (
+            this.permisos.esAdministrativo ||
+            this.permisos.esCasaNacional ||
+            this.permisos.esGerente ||
+            this.permisos.esDirector ||
+            this.permisos.esCoordinador ||
+            this.permisos.esAfiliado
+        );
     };
 
     return PermisosManager;

@@ -741,13 +741,23 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     const asesorIdStr = asesor.id ? asesor.id.toString() : "";
                     const userIdStr = this.userId ? this.userId.toString() : "";
                     var esUsuarioActual = asesorIdStr === userIdStr;
-                    var esClickeable = false;
+                    var esClickeable = true; // Por defecto permitir
 
                     if (this.permisosUsuario) {
+                        // ✅ NUEVA LÓGICA: Solo restringir si es asesor regular puro
                         if (this.permisosUsuario.esAsesorRegular) {
-                            esClickeable = esUsuarioActual;
-                        } else {
-                            esClickeable = true;
+                            // Verificar si tiene roles de gestión
+                            const tieneRolesGestion =
+                                this.permisosUsuario.esGerente ||
+                                this.permisosUsuario.esCoordinador ||
+                                this.permisosUsuario.esDirector ||
+                                this.permisosUsuario.esAfiliado ||
+                                this.permisosUsuario.esCasaNacional;
+
+                            // Si es asesor regular puro (sin roles de gestión), solo puede ver su perfil
+                            if (!tieneRolesGestion) {
+                                esClickeable = esUsuarioActual;
+                            }
                         }
                     }
 

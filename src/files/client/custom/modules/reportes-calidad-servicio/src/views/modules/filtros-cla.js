@@ -77,26 +77,18 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
         var clasDisponibles = [];
 
         // ✅ Admin y Casa Nacional ven todos los CLAs
-        if (permisos.esAdministrativo || permisos.esCasaNacional) {
-            clasDisponibles = this.allTeams.clas.filter(function (cla) {
-                return cla.id !== "CLA0";
-            });
-        }
-        // ✅ Gerentes, Directores, Coordinadores, Afiliados ven su CLA
-        else if (
+        if (
+            permisos.esAdministrativo ||
+            permisos.esCasaNacional ||
             permisos.esGerente ||
             permisos.esDirector ||
             permisos.esCoordinador ||
             permisos.esAfiliado
         ) {
-            if (permisos.claUsuario) {
-                clasDisponibles = this.allTeams.clas.filter(function (cla) {
-                    return cla.id === permisos.claUsuario;
-                });
-            }
-        }
-        // ✅ Asesores Regulares ven su CLA
-        else if (permisos.esAsesorRegular) {
+            clasDisponibles = this.allTeams.clas.filter(function (cla) {
+                return cla.id !== "CLA0";
+            });
+        } else if (permisos.esAsesorRegular) {
             if (permisos.claUsuario) {
                 clasDisponibles = this.allTeams.clas.filter(function (cla) {
                     return cla.id === permisos.claUsuario;

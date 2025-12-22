@@ -15,6 +15,40 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
 
         var permisos = this.view.permisosManager.getPermisos();
 
+        if (permisos.esAsesorRegular) {
+            console.log(
+                "👤 Asesor regular puro - Cargando solo SU oficina:",
+                permisos.oficinaUsuario
+            );
+
+            if (permisos.oficinaUsuario) {
+                this.cargarOficinaEspecifica(
+                    permisos.oficinaUsuario,
+                    oficinaSelect
+                );
+            } else {
+                oficinaSelect.html(
+                    '<option value="">No tienes oficina asignada</option>'
+                );
+                oficinaSelect.prop("disabled", true);
+            }
+            return;
+        }
+
+        // ✅ PARA OTROS ROLES CON OFICINA ESPECÍFICA
+        if (!permisos.esAdministrativo && !permisos.esCasaNacional) {
+            if (permisos.oficinaUsuario) {
+                this.cargarOficinaEspecifica(
+                    permisos.oficinaUsuario,
+                    oficinaSelect
+                );
+                return;
+            }
+        }
+
+        // ✅ ADMIN Y CASA NACIONAL: todas las oficinas del CLA
+        this.cargarOficinasPorCLA(claId);
+
         // ✅ CORREGIDO: Para ASESOR REGULAR, cargar TODAS las oficinas de su CLA seleccionado
         if (permisos.esAsesorRegular) {
             console.log(

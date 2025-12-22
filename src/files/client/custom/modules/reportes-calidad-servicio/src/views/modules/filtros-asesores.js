@@ -18,14 +18,44 @@ define("reportes-calidad-servicio:views/modules/filtros-asesores", [], function 
 
         var permisos = this.view.permisosManager.getPermisos();
 
-        // ✅ PARA ASESOR REGULAR: Mostrar opciones especiales
-        if (permisos.esAsesorRegular) {
-            this.cargarOpcionesAsesorRegular(asesorSelect);
-            return;
-        }
+        console.log("🔍 PERMISOS USUARIO:", permisos);
+        console.log("🔍 ¿Es asesor regular?:", permisos.esAsesorRegular);
+        console.log(
+            "🔍 ¿Tiene roles de gestión?:",
+            permisos.esGerente ||
+                permisos.esCoordinador ||
+                permisos.esDirector ||
+                permisos.esAfiliado ||
+                permisos.esCasaNacional
+        );
 
-        // Si es admin o casa nacional, cargar todos los asesores de la oficina
-        this.cargarAsesoresPorOficina(oficinaId);
+        // ✅ NUEVA LÓGICA DE PERMISOS
+        if (permisos.esAsesorRegular) {
+            // Verificar si tiene roles de gestión
+            const tieneRolesGestion =
+                permisos.esGerente ||
+                permisos.esCoordinador ||
+                permisos.esDirector ||
+                permisos.esAfiliado ||
+                permisos.esCasaNacional;
+
+            if (tieneRolesGestion) {
+                console.log(
+                    "🔍 Tiene roles de gestión - Cargando TODOS los asesores"
+                );
+                this.cargarAsesoresPorOficina(oficinaId);
+            } else {
+                console.log(
+                    "🔍 Asesor regular sin roles de gestión - Solo mostrar sus datos"
+                );
+                this.cargarOpcionesAsesorRegular(asesorSelect);
+            }
+        } else {
+            console.log(
+                "🔍 NO es asesor regular - Cargando todos los asesores"
+            );
+            this.cargarAsesoresPorOficina(oficinaId);
+        }
     };
 
     FiltrosAsesoresManager.prototype.cargarOpcionesAsesorRegular = function (
@@ -109,11 +139,24 @@ define("reportes-calidad-servicio:views/modules/filtros-asesores", [], function 
         oficinaId
     ) {
         var asesorSelect = this.view.$el.find("#asesor-select");
+        var permisos = this.view.permisosManager.getPermisos();
 
-        // Obtener usuarios del equipo (oficina)
+        if (!asesorSelect.length) {
+            return;
+        }
+
+        asesorSelect.html('<option value="">Cargando asesores...</option>');
+        asesorSelect.prop("disabled", true);
+
         this.fetchUsuariosPorOficina(oficinaId)
             .then(
                 function (usuarios) {
+                    console.log(
+                        "✅ Usuarios cargados para oficina:",
+                        oficinaId,
+                        usuarios
+                    );
+
                     if (!usuarios || usuarios.length === 0) {
                         asesorSelect.html(
                             '<option value="">No hay asesores en esta oficina</option>'
@@ -124,7 +167,9 @@ define("reportes-calidad-servicio:views/modules/filtros-asesores", [], function 
 
                     // Ordenar por nombre
                     usuarios.sort(function (a, b) {
-                        return (a.name || "").localeCompare(b.name || "");
+                        return (a.name || a.userName || "").localeCompare(
+                            b.name || b.userName || ""
+                        );
                     });
 
                     // Poblar select
@@ -134,22 +179,49 @@ define("reportes-calidad-servicio:views/modules/filtros-asesores", [], function 
                     );
 
                     usuarios.forEach(function (usuario) {
+                        // ✅ CORREGIR: Mostrar nombre correcto
+                        var nombreCompleto =
+                            usuario.name ||
+                            usuario.userName ||
+                            "Usuario #" + usuario.id.substring(0, 8);
+
+                        // ✅ Si tiene encuestas, mostrarlo
+                        var tieneEncuestas = usuario.encuestas > 0;
+                        var indicador = tieneEncuestas
+                            ? ` (${usuario.encuestas} encuestas)`
+                            : " (Sin encuestas)";
+
                         asesorSelect.append(
                             '<option value="' +
                                 usuario.id +
                                 '">' +
-                                (usuario.name ||
-                                    usuario.userName ||
-                                    "Usuario sin nombre") +
+                                nombreCompleto +
+                                indicador +
                                 "</option>"
                         );
                     });
 
                     asesorSelect.prop("disabled", false);
+
+                    // ✅ Si el usuario es gerente/director/etc, seleccionar "Todos los asesores" por defecto
+                    if (
+                        permisos.esGerente ||
+                        permisos.esDirector ||
+                        permisos.esCoordinador ||
+                        permisos.esAfiliado
+                    ) {
+                        asesorSelect.val("");
+                    }
+
+                    console.log(
+                        "✅ Select de asesores poblado con",
+                        usuarios.length,
+                        "opciones"
+                    );
                 }.bind(this)
             )
             .catch(function (error) {
-                console.error("Error cargando asesores:", error);
+                console.error("❌ Error cargando asesores:", error);
                 asesorSelect.html(
                     '<option value="">Error al cargar asesores</option>'
                 );
@@ -163,67 +235,57 @@ define("reportes-calidad-servicio:views/modules/filtros-asesores", [], function 
     FiltrosAsesoresManager.prototype.fetchUsuariosPorOficina = function (
         oficinaId
     ) {
-        return new Promise(
-            function (resolve, reject) {
-                var maxSize = 200;
-                var allUsers = [];
-
-                var fetchPage = function (offset) {
-                    this.view.getCollectionFactory().create(
-                        "User",
-                        function (collection) {
-                            collection.maxSize = maxSize;
-                            collection.offset = offset;
-                            collection.data = {
-                                select: "id,name,userName,teamsIds,teamsNames",
-                            };
-
-                            collection
-                                .fetch()
-                                .then(
-                                    function () {
-                                        var models = collection.models || [];
-
-                                        // Filtrar usuarios que pertenecen a la oficina
-                                        var filtered = models
-                                            .filter(function (u) {
-                                                var teamsIds =
-                                                    u.get("teamsIds") || [];
-                                                return teamsIds.includes(
-                                                    oficinaId
-                                                );
-                                            })
-                                            .map(function (m) {
-                                                return {
-                                                    id: m.id,
-                                                    name: m.get("name"),
-                                                    userName: m.get("userName"),
-                                                    teamsIds: m.get("teamsIds"),
-                                                    teamsNames:
-                                                        m.get("teamsNames"),
-                                                };
-                                            });
-
-                                        allUsers = allUsers.concat(filtered);
-
-                                        if (
-                                            models.length === maxSize &&
-                                            offset + maxSize < collection.total
-                                        ) {
-                                            fetchPage(offset + maxSize);
-                                        } else {
-                                            resolve(allUsers);
-                                        }
-                                    }.bind(this)
-                                )
-                                .catch(reject);
-                        }.bind(this)
-                    );
-                }.bind(this);
-
-                fetchPage(0);
-            }.bind(this)
+        console.log(
+            "🔄 DEBUG - fetchUsuariosPorOficina INICIADO para oficina:",
+            oficinaId
         );
+
+        return new Promise(function (resolve, reject) {
+            // ✅ USAR API DEL BACKEND EN LUGAR DE FETCH DIRECTO
+            Espo.Ajax.getRequest(
+                "CCustomerSurvey/action/getAsesoresByOficina",
+                {
+                    oficinaId: oficinaId,
+                }
+            )
+                .then(function (response) {
+                    console.log(
+                        "✅ Respuesta de getAsesoresByOficina:",
+                        response
+                    );
+
+                    if (response && response.success && response.data) {
+                        var usuarios = response.data.map(function (usuario) {
+                            return {
+                                id: usuario.id,
+                                name: usuario.name,
+                                userName: usuario.userName,
+                                encuestas: usuario.encuestas || 0,
+                            };
+                        });
+
+                        console.log(
+                            "✅ Usuarios encontrados:",
+                            usuarios.length,
+                            usuarios
+                        );
+                        resolve(usuarios);
+                    } else {
+                        console.warn(
+                            "⚠️ No hay datos de asesores para la oficina:",
+                            oficinaId
+                        );
+                        resolve([]);
+                    }
+                })
+                .catch(function (error) {
+                    console.error(
+                        "❌ Error en fetchUsuariosPorOficina:",
+                        error
+                    );
+                    reject(error);
+                });
+        });
     };
 
     /**
