@@ -3,11 +3,7 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         template: "reportes-calidad-servicio:oficinas",
 
         setup: function () {
-            console.log("🏢 Vista de comparación de oficinas inicializada");
-            console.log("📦 Options recibidas:", this.options);
-
             this.claId = (this.options && this.options.claId) || null;
-            console.log("🔑 CLA ID inicial:", this.claId);
 
             this.isLoading = true;
             this.datosOficinas = [];
@@ -49,7 +45,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         },
 
         afterRender: function () {
-            console.log("🔄 afterRender ejecutado");
             this.setupEventListeners();
             this.cargarCLAs();
         },
@@ -64,7 +59,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
 
             this.$el.on("change", "#select-cla", function () {
                 const claId = $(this).val();
-                console.log("📋 CLA seleccionado:", claId);
                 if (claId) {
                     self.claId = claId;
                     self.cargarDatosOficinas();
@@ -79,24 +73,20 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                 .find('[data-action="refrescar"]')
                 .on("click", function (e) {
                     e.preventDefault();
-                    console.log("🔄 Refrescando datos");
                     self.refrescarDatos();
                 });
 
             this.$el.find('[data-action="exportar"]').on("click", function (e) {
                 e.preventDefault();
-                console.log("💾 Exportando reporte");
                 self.exportarReporte();
             });
 
-            // ✅ AGREGAR: Event listener para barras alternativas
             this.$el.on("click", ".alternative-bar", function (e) {
                 e.preventDefault();
                 e.stopPropagation();
                 const oficinaId =
                     $(this).data("oficina-id") ||
                     $(this).attr("data-oficina-id");
-                console.log("🖱️ Click en barra alternativa - ID:", oficinaId);
                 if (oficinaId) {
                     self.navegarAAsesoresDeOficina(oficinaId);
                 }
@@ -104,91 +94,57 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         },
 
         volverAVistaAnterior: function () {
-            console.log("🔙 Volviendo a vista anterior");
-
-            // Intentar usar previousRoute si está disponible
             if (this.options.previousRoute) {
-                console.log(
-                    "📍 Usando previousRoute:",
-                    this.options.previousRoute
-                );
                 this.getRouter().navigate(this.options.previousRoute, {
                     trigger: true,
                 });
                 return;
             }
 
-            // Fallback: volver a principal
-            console.log("📍 Fallback: volviendo a Principal");
             this.getRouter().navigate("#Principal", { trigger: true });
         },
 
         checkChartJSAvailability: function () {
-            console.log("🔍 Verificando disponibilidad de Chart.js...");
-
-            // Verificar si Chart.js ya está disponible
             if (typeof Chart !== "undefined") {
-                console.log("✅ Chart.js está disponible globalmente");
                 this.chartAvailable = true;
                 return;
             }
 
-            console.warn("⚠️ Chart.js NO está disponible globalmente");
             this.chartAvailable = false;
-
-            // ✅ IMPORTANTE: Si no está disponible, cargarlo ahora
-            console.log(
-                "📦 Chart.js no disponible, cargándolo desde módulo personalizado..."
-            );
             this.loadChartJS();
         },
 
         loadChartJS: function () {
             const self = this;
 
-            // Evitar múltiples cargas
             if (this.chartLoading) {
-                console.log("⏳ Chart.js ya se está cargando...");
                 return;
             }
 
             this.chartLoading = true;
 
-            // Cargar Chart.js desde la misma ruta que principal.js
             const script = document.createElement("script");
             script.src =
                 "client/custom/modules/reportes-calidad-servicio/lib/chart.min.js";
 
             script.onload = function () {
                 self.chartLoading = false;
-                console.log(
-                    "✅ Chart.js cargado exitosamente desde módulo personalizado"
-                );
 
-                // Verificar que ahora esté disponible
                 if (typeof Chart !== "undefined") {
                     self.chartAvailable = true;
-                    console.log("✅ Chart.js ahora está disponible");
 
-                    // Si ya tenemos datos, renderizar gráfico
                     if (self.datosOficinas.length > 0) {
                         setTimeout(() => {
                             self.renderGraficoBarrasHorizontales();
                         }, 300);
                     }
                 } else {
-                    console.error(
-                        "❌ Chart.js aún no está disponible después de cargar"
-                    );
                     self.showChartAlternative();
                 }
             };
 
             script.onerror = function () {
                 self.chartLoading = false;
-                console.error(
-                    "❌ Error al cargar Chart.js desde módulo personalizado"
-                );
                 self.showChartAlternative();
             };
 
@@ -198,26 +154,17 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         cargarCLAs: function () {
             const self = this;
 
-            console.log("📋 Cargando lista de CLAs...");
-
             Espo.Ajax.getRequest("CCustomerSurvey/action/getCLAs")
                 .then(function (response) {
-                    console.log("✅ Respuesta de getCLAs:", response);
-
                     if (
                         response.success &&
                         response.data &&
                         response.data.length > 0
                     ) {
                         self.clasList = response.data;
-                        console.log(`📋 ${self.clasList.length} CLAs cargados`);
 
-                        // Actualizar select de CLAs
                         const selectCLA = self.$el.find("#select-cla");
                         if (selectCLA.length === 0) {
-                            console.error(
-                                "❌ Select CLA no encontrado en el DOM"
-                            );
                             return;
                         }
 
@@ -232,42 +179,27 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                             );
                         });
 
-                        // Habilitar el select
                         selectCLA.prop("disabled", false);
 
-                        // Si hay un claId, seleccionarlo
                         if (self.claId) {
-                            console.log(
-                                `🎯 Seleccionando CLA desde controlador: ${self.claId}`
-                            );
                             selectCLA.val(self.claId);
 
-                            // Cargar datos automáticamente después de un delay
                             setTimeout(() => {
                                 self.cargarDatosOficinas();
                             }, 200);
                         } else {
-                            console.log(
-                                "ℹ️ No hay CLA inicial para seleccionar"
-                            );
                             self.isLoading = false;
                             self.updateUI();
                         }
                     } else {
-                        console.warn(
-                            "⚠️ Respuesta de getCLAs sin datos:",
-                            response
-                        );
                         Espo.Ui.error("No se encontraron CLAs disponibles");
                         self.isLoading = false;
                         self.updateUI();
                     }
                 })
                 .catch(function (error) {
-                    console.error("❌ Error al cargar los CLAs:", error);
                     Espo.Ui.error("Error al cargar la lista de CLAs");
 
-                    // Mostrar opción por defecto en caso de error
                     const selectCLA = self.$el.find("#select-cla");
                     if (selectCLA.length) {
                         selectCLA.empty();
@@ -282,10 +214,7 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         },
 
         cargarDatosOficinas: function () {
-            console.log("📊 Cargando datos de oficinas para CLA:", this.claId);
-
             if (!this.claId) {
-                console.warn("⚠️ No hay CLA seleccionado");
                 Espo.Ui.warning("Por favor, seleccione un CLA");
                 this.isLoading = false;
                 this.updateUI();
@@ -295,7 +224,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
             this.isLoading = true;
             this.updateUI();
 
-            // ✅ NUEVO: Si es CLA0 (Territorio Nacional), obtener todas las oficinas
             const params =
                 this.claId === "CLA0"
                     ? { territorio: "nacional" }
@@ -306,11 +234,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                 params
             ).then(
                 function (response) {
-                    console.log(
-                        "✅ Respuesta de getComparacionOficinas:",
-                        response
-                    );
-
                     if (
                         response.success &&
                         response.data &&
@@ -327,17 +250,11 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                             porcentaje: parseFloat(item.porcentaje) || 0,
                         }));
 
-                        console.log(
-                            `📊 ${this.datosOficinas.length} oficinas cargadas`
-                        );
-
-                        // Ordenar por satisfacción descendente
                         this.datosOficinas.sort(
                             (a, b) =>
                                 b.satisfaccionPromedio - a.satisfaccionPromedio
                         );
                     } else {
-                        console.warn("⚠️ No hay datos de oficinas");
                         this.datosOficinas = [];
                         Espo.Ui.info("No hay datos de oficinas disponibles");
                     }
@@ -350,7 +267,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                     }, 300);
                 }.bind(this),
                 function (error) {
-                    console.error("❌ Error en petición:", error);
                     Espo.Ui.error("Error al cargar datos de oficinas");
                     this.datosOficinas = [];
                     this.isLoading = false;
@@ -360,15 +276,11 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         },
 
         volverAPrincipal: function () {
-            console.log("🔙 Volviendo a vista principal");
             this.getRouter().navigate("#Principal", { trigger: true });
         },
 
         refrescarDatos: function () {
-            console.log("🔄 Refrescando datos para CLA:", this.claId);
-
             if (this.claId) {
-                // Deshabilitar botón mientras carga
                 const refreshBtn = this.$el.find('[data-action="refrescar"]');
                 const originalHtml = refreshBtn.html();
                 refreshBtn
@@ -379,7 +291,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
 
                 this.cargarDatosOficinas();
 
-                // Restaurar botón después de 2 segundos
                 setTimeout(() => {
                     refreshBtn.prop("disabled", false).html(originalHtml);
                 }, 2000);
@@ -389,8 +300,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         },
 
         exportarReporte: function () {
-            console.log("💾 Iniciando exportación de reporte");
-
             if (this.datosOficinas.length === 0) {
                 Espo.Ui.warning("No hay datos para exportar");
                 return;
@@ -400,7 +309,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                 this.$el.find("#select-cla option:selected").text() ||
                 this.claId ||
                 "Reporte";
-            console.log("📄 Exportando reporte para:", claNombre);
 
             let csv =
                 "Oficina,Encuestas Totales,Satisfacción Promedio,% Satisfacción,% Recomendación\n";
@@ -434,7 +342,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                 link.click();
                 document.body.removeChild(link);
 
-                console.log("✅ Reporte exportado exitosamente");
                 Espo.Ui.success("Reporte exportado exitosamente");
             } else {
                 Espo.Ui.error(
@@ -446,23 +353,17 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         updateUI: function () {
             const container = this.$el.find("#oficinas-container");
             if (!container.length) {
-                console.error(
-                    "❌ Contenedor #oficinas-container no encontrado"
-                );
                 return;
             }
 
-            // ✅ LIMPIAR el gráfico anterior antes de actualizar
             if (this.chartBarrasHorizontales) {
                 this.chartBarrasHorizontales.destroy();
                 this.chartBarrasHorizontales = null;
             }
 
-            // ✅ Limpiar cualquier contenido alternativo previo
             this.$el.find(".chart-alternative").remove();
 
             if (this.isLoading) {
-                console.log("⏳ Mostrando estado de carga...");
                 container.html(`
                     <div class="text-center" style="padding: 80px 20px;">
                         <div class="spinner-large"></div>
@@ -478,9 +379,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
             }
 
             if (this.datosOficinas.length === 0) {
-                console.log(
-                    "📭 No hay datos de oficinas, mostrando estado vacío"
-                );
                 container.html(`
                     <div class="no-data-card">
                         <div class="no-data-icon">
@@ -494,8 +392,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                 return;
             }
 
-            console.log("🎨 Actualizando UI con datos de oficinas");
-            // Mostrar datos y gráfico
             container.html(this.getOficinasHTML());
         },
 
@@ -504,10 +400,8 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                 this.$el.find("#select-cla option:selected").text() ||
                 this.claId ||
                 "General";
-            console.log("📋 Generando HTML para CLA:", claDisplay);
 
             return `
-                <!-- Resumen del CLA -->
                 <div class="row" style="margin-bottom: 30px;">
                     <div class="col-md-12">
                         <div class="resumen-cla-card">
@@ -602,7 +496,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                     </div>
                 </div>
                 
-                
                 <div class="row">
                     <div class="col-md-12">
                         <div class="grafico-principal-card">
@@ -648,7 +541,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                             </div>
                             <div class="grafico-body">
                                 <div class="grafico-wrapper">
-                                    <!-- ✅ Contenedor específico para el canvas -->
                                     <div class="grafico-canvas-container">
                                         <canvas id="grafico-barras-horizontales"></canvas>
                                     </div>
@@ -694,32 +586,24 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
 
         renderGraficoBarrasHorizontales: function () {
             if (this.chartRenderInProgress) {
-                console.log(
-                    "⏳ Ya hay un gráfico renderizándose, esperando..."
-                );
                 return;
             }
 
             this.chartRenderInProgress = true;
 
             if (typeof Chart === "undefined") {
-                console.warn(
-                    "Chart.js no está disponible, mostrando alternativa"
-                );
                 this.chartRenderInProgress = false;
                 this.showChartAlternative();
                 return;
             }
 
             if (this.datosOficinas.length === 0) {
-                console.warn("No hay datos para renderizar gráfico");
                 this.chartRenderInProgress = false;
                 return;
             }
 
             const ctx = this.$el.find("#grafico-barras-horizontales")[0];
             if (!ctx) {
-                console.warn("Canvas no encontrado");
                 this.chartRenderInProgress = false;
                 this.showChartAlternative();
                 return;
@@ -754,10 +638,8 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
 
             const coloresBarras = porcentajes.map((p) => this.getBarColor(p));
 
-            // ✅ MODIFICAR: Crear array con IDs de oficinas
             const oficinasIds = datosOrdenados.map((o) => o.id);
 
-            // ✅ GUARDAR REFERENCIA A "this" para usar dentro de las funciones callback
             const self = this;
 
             try {
@@ -837,29 +719,16 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                                 displayColors: false,
                             },
                         },
-                        // ✅ CORREGIR: Evento onClick usando "self" en lugar de "this"
                         onClick: function (evt, elements) {
                             if (elements && elements.length > 0) {
                                 const elementIndex = elements[0].index;
-                                console.log(
-                                    "🎯 Click en elemento:",
-                                    elementIndex
-                                );
 
-                                // ✅ OBTENER OFICINA ID DEL ARRAY DE IDs
                                 if (oficinasIds[elementIndex]) {
                                     const oficinaId = oficinasIds[elementIndex];
-                                    console.log("📍 Oficina ID:", oficinaId);
                                     self.navegarAAsesoresDeOficina(oficinaId);
-                                } else {
-                                    console.warn(
-                                        "No se encontró ID para el índice:",
-                                        elementIndex
-                                    );
                                 }
                             }
                         },
-                        // ✅ CORREGIR: Evento onHover usando "self"
                         onHover: function (evt, elements, chart) {
                             if (elements && elements.length > 0) {
                                 if (chart && chart.canvas) {
@@ -935,7 +804,6 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                     },
                 });
 
-                console.log("✅ Gráfico renderizado correctamente");
                 this.chartRenderInProgress = false;
 
                 setTimeout(() => {
@@ -944,76 +812,47 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
                     }
                 }, 100);
             } catch (error) {
-                console.error("❌ Error al renderizar gráfico:", error);
                 this.chartRenderInProgress = false;
                 this.showChartAlternative();
             }
         },
 
         navegarAAsesoresDeOficina: function (oficinaId) {
-            console.log("🔗 Navegando a asesores de oficina:", oficinaId);
-
-            // Verificar que tenemos datos
             if (!this.datosOficinas || this.datosOficinas.length === 0) {
-                console.error("❌ No hay datos de oficinas disponibles");
                 Espo.Ui.warning("No hay datos disponibles");
                 return;
             }
 
             if (!oficinaId) {
-                console.error("❌ ID de oficina no proporcionado");
                 Espo.Ui.warning("No se pudo identificar la oficina");
                 return;
             }
 
-            // Buscar la oficina
             const oficina = this.datosOficinas.find((o) => {
-                console.log(
-                    `Comparando: ${o.id} === ${oficinaId} -> ${
-                        o.id === oficinaId
-                    }`
-                );
                 return o.id === oficinaId;
             });
 
             if (!oficina) {
-                console.error(
-                    "❌ Oficina no encontrada en datos:",
-                    this.datosOficinas
-                );
-                console.error("Buscando ID:", oficinaId);
                 Espo.Ui.warning("No se encontró la oficina seleccionada");
                 return;
             }
 
             const nombreOficina = oficina.nombre || "esta oficina";
-            console.log("✅ Oficina encontrada:", oficina);
 
-            // ✅ USAR confirm nativo primero para testing
             try {
                 const confirmacion = window.confirm(
                     `¿Deseas ver la comparación de asesores de "${nombreOficina}"?`
                 );
 
                 if (confirmacion) {
-                    console.log("✅ Usuario confirmó, navegando...");
                     this.irAVistaAsesores(oficinaId);
-                } else {
-                    console.log("❌ Usuario canceló");
                 }
             } catch (error) {
-                console.error("❌ Error en confirm:", error);
-                // Fallback: navegar directamente
                 this.irAVistaAsesores(oficinaId);
             }
         },
 
         irAVistaAsesores: function (oficinaId) {
-            console.log(
-                "🚀 Iniciando navegación a vista de asesores para oficina:",
-                oficinaId
-            );
-
             sessionStorage.setItem(
                 "contextoNavegacion",
                 JSON.stringify({
@@ -1025,48 +864,37 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
             );
 
             if (!oficinaId) {
-                console.error("❌ ID de oficina no válido para navegación");
                 Espo.Ui.warning(
                     "No se pudo identificar la oficina seleccionada"
                 );
                 return;
             }
 
-            // ✅ AGREGAR un pequeño delay para asegurar que la navegación no interfiera
             setTimeout(() => {
                 try {
                     this.getRouter().navigate(
                         `#Principal/asesores/${oficinaId}`,
                         {
                             trigger: true,
-                            claId: this.claId, // Pasar claId para contexto de navegación
+                            claId: this.claId,
                         }
                     );
-
-                    console.log("✅ Navegación iniciada exitosamente");
                 } catch (error) {
-                    console.error("❌ Error en navegación:", error);
-
-                    // Intentar navegación directa como fallback
                     try {
                         window.location.hash =
                             "#Principal/asesores/" +
                             encodeURIComponent(oficinaId);
-                        console.log("🔄 Usando navegación por hash directa");
 
-                        // Forzar recarga si es necesario
                         setTimeout(() => {
                             location.reload();
                         }, 100);
                     } catch (fallbackError) {
-                        console.error("❌ Error en fallback:", fallbackError);
                         Espo.Ui.error("Error de navegación: " + error.message);
                     }
                 }
-            }, 100); // Pequeño delay para evitar conflictos
+            }, 100);
         },
 
-        // Métodos auxiliares para colores (mantener)
         darkenColor: function (color, amount) {
             try {
                 let usePound = false;
@@ -1107,28 +935,19 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
             }
         },
 
-        // Mantener el método showChartAlternative para casos donde Chart.js no esté disponible
         showChartAlternative: function () {
-            console.log("📊 Mostrando alternativa HTML para gráfico");
-
             const canvasContainer = this.$el.find(".grafico-canvas-container");
             if (!canvasContainer.length) {
-                console.warn(
-                    "Contenedor del gráfico no encontrado para alternativa"
-                );
                 return;
             }
 
-            // ✅ Destruir gráfico Chart.js si existe
             if (this.chartBarrasHorizontales) {
                 this.chartBarrasHorizontales.destroy();
                 this.chartBarrasHorizontales = null;
             }
 
-            // ✅ Limpiar contenedor y mostrar alternativa HTML
             canvasContainer.html(this.getAlternativeChartHTML());
 
-            // Agregar interactividad para tooltips
             this.setupAlternativeTooltips();
         },
 
@@ -1195,27 +1014,20 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         setupAlternativeTooltips: function () {
             const self = this;
 
-            // ✅ REMOVER el listener previo para evitar duplicados
             this.$el.off("click", ".alternative-bar");
 
-            // ✅ AGREGAR nuevo listener
             this.$el.on("click", ".alternative-bar", function (e) {
                 e.preventDefault();
                 e.stopPropagation();
 
-                // Obtener el ID de la oficina
                 const oficinaId =
                     $(this).data("oficina-id") ||
                     $(this).attr("data-oficina-id") ||
                     $(this).find("[data-oficina-id]").data("oficina-id");
 
-                console.log("🖱️ Click en barra alternativa - ID:", oficinaId);
-                console.log("Elemento clickeado:", this);
-
                 if (oficinaId) {
                     self.navegarAAsesoresDeOficina(oficinaId);
                 } else {
-                    console.error("❌ No se pudo obtener el ID de la oficina");
                     Espo.Ui.warning(
                         "No se pudo identificar la oficina seleccionada"
                     );
@@ -1224,25 +1036,18 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
         },
 
         onRemove: function () {
-            console.log("🧹 Limpiando recursos de la vista de oficinas");
-
-            // Destruir gráfico si existe
             if (this.chartBarrasHorizontales) {
                 this.chartBarrasHorizontales.destroy();
                 this.chartBarrasHorizontales = null;
             }
 
-            // Cancelar cualquier petición pendiente
             if (this.currentRequest && this.currentRequest.abort) {
                 this.currentRequest.abort();
             }
 
-            // Remover event listeners
             this.$el.off("change", "#select-cla");
             this.$el.off("click", "[data-action]");
             this.$el.off("click", ".alternative-bar");
-
-            console.log("✅ Recursos limpiados");
         },
     });
 });

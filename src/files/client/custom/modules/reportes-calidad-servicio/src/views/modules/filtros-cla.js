@@ -4,7 +4,7 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
         this.filtros = {
             cla: null,
             oficina: null,
-            asesor: null, // ✅ AGREGAR
+            asesor: null,
             mostrarTodas: true,
         };
         this.allTeams = {
@@ -32,8 +32,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                     function () {
                         this.procesarTeams(collection);
                         this.populateCLASelect();
-
-                        // ✅ NUEVO: Cargar CLA inicial automáticamente
                         this.cargarCLAInicial();
                     }.bind(this)
                 );
@@ -69,14 +67,12 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
 
         var permisos = this.view.permisosManager.getPermisos();
 
-        // ✅ SIMPLIFICADO: TODOS ven Territorio Nacional primero
         claSelect.append(
             $("<option></option>").val("CLA0").text("Territorio Nacional")
         );
 
         var clasDisponibles = [];
 
-        // ✅ Admin y Casa Nacional ven todos los CLAs
         if (
             permisos.esAdministrativo ||
             permisos.esCasaNacional ||
@@ -96,7 +92,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
             }
         }
 
-        // Ordenar y agregar
         clasDisponibles.sort(function (a, b) {
             return a.name.localeCompare(b.name);
         });
@@ -105,7 +100,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
             claSelect.append($("<option></option>").val(cla.id).text(cla.name));
         });
 
-        // ✅ Seleccionar Territorio Nacional por defecto para TODOS
         claSelect.val("CLA0");
         claSelect.prop("disabled", false);
     };
@@ -121,26 +115,11 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                 function (e) {
                     var claId = $(e.currentTarget).val();
 
-                    console.log("🔍 DEBUG - CLA seleccionado:", claId);
-                    console.log("🔍 DEBUG - CLA es CLA0?:", claId === "CLA0");
-                    console.log("🔍 DEBUG - CLA es null/empty?:", !claId);
-
-                    // Actualizar filtros
                     this.filtros.cla = claId || null;
                     this.filtros.oficina = null;
                     this.filtros.asesor = null;
 
-                    // ✅ CORRECCIÓN CRÍTICA: Asegurar que mostrarTodas sea true cuando es CLA0
                     this.filtros.mostrarTodas = !claId || claId === "CLA0";
-
-                    console.log(
-                        "🔍 DEBUG - Filtros actualizados:",
-                        this.filtros
-                    );
-                    console.log(
-                        "🔍 DEBUG - mostrarTodas:",
-                        this.filtros.mostrarTodas
-                    );
 
                     var btnComparacionOficinas = this.view.$el.find(
                         "#btn-comparar-oficinas"
@@ -151,15 +130,12 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                     var oficinaSelect = this.view.$el.find("#oficina-select");
                     var asesorSelect = this.view.$el.find("#asesor-select");
 
-                    // Limpiar selects dependientes
                     oficinaSelect.val("");
                     asesorSelect.val("");
 
                     var permisos = this.view.permisosManager.getPermisos();
 
-                    // ✅ CORRECCIÓN: Para asesor regular, habilitar botón de comparar oficinas cuando selecciona su CLA
                     if (claId && claId !== "CLA0") {
-                        // Mostrar botón de comparar oficinas para todos
                         btnComparacionOficinas
                             .show()
                             .css("display", "inline-flex");
@@ -175,7 +151,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                     } else {
                         btnComparacionOficinas.hide();
 
-                        // Solo para admin, mostrar mensaje de seleccionar CLA
                         oficinaSelect.empty();
                         oficinaSelect.append(
                             '<option value="">Seleccione un CLA primero</option>'
@@ -189,11 +164,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                         this.view.filtrosAsesoresManager.limpiarFiltros();
                     }
 
-                    // ✅ Recargar estadísticas siempre
-                    console.log(
-                        "🔍 DEBUG - Llamando a loadStatistics con filtros:",
-                        this.filtros
-                    );
                     this.view.estadisticasManager.loadStatistics();
                 }.bind(this)
             );
@@ -202,7 +172,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
         this.setupComparacionOficinas();
     };
 
-    // ✅ NUEVO MÉTODO: Configurar botón de comparación de oficinas
     FiltrosCLAManager.prototype.setupComparacionOficinas = function () {
         var self = this;
         var btnComparar = this.view.$el.find("#btn-comparar-oficinas");
@@ -212,7 +181,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
             var claId = selectCLA.val();
             var claNombre = selectCLA.find("option:selected").text();
 
-            // ✅ Validar que no sea Territorio Nacional
             if (!claId || claId === "CLA0" || claId === "") {
                 Espo.Ui.warning(
                     "Por favor, selecciona un CLA específico (no Territorio Nacional)"
@@ -220,16 +188,12 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
                 return;
             }
 
-            console.log("🏢 Navegando a comparación de oficinas - CLA:", claId);
-
-            // ✅ Guardar estado actual de filtros
             self.view.filtrosGuardados = {
                 cla: claId,
                 oficina: self.view.$el.find("#oficina-select").val(),
                 asesor: self.view.$el.find("#asesor-select").val(),
             };
 
-            // ✅ Navegar a la vista de comparación
             self.view
                 .getRouter()
                 .navigate("#Oficinas/" + claId, { trigger: true });
@@ -237,7 +201,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
     };
 
     FiltrosCLAManager.prototype.getFiltros = function () {
-        console.log("🔍 DEBUG getFiltros - Retornando:", this.filtros);
         return this.filtros;
     };
 
@@ -245,7 +208,6 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
         var permisos = this.view.permisosManager.getPermisos();
 
         if (!permisos.permisosListo) {
-            console.log("⏳ Esperando permisos...");
             setTimeout(
                 function () {
                     this.cargarCLAInicial();
@@ -258,24 +220,15 @@ define("reportes-calidad-servicio:views/modules/filtros-cla", [], function () {
         var claSelect = this.view.$el.find("#cla-select");
 
         if (!claSelect.length) {
-            console.warn("⚠️ Select CLA no encontrado");
             return;
         }
 
-        // ✅ Forzar selección de Territorio Nacional
-        console.log("🌎 FORZANDO selección de Territorio Nacional por defecto");
-
-        // Asegurar que el valor esté en el select
         if (claSelect.find('option[value="CLA0"]').length > 0) {
             claSelect.val("CLA0");
 
-            // ✅ AGREGAR: Disparar el evento change manualmente después de un breve delay
             setTimeout(function () {
-                console.log("🔄 Disparando evento change para CLA0");
                 claSelect.trigger("change");
             }, 500);
-        } else {
-            console.error("❌ ERROR: Option CLA0 no encontrada en el select");
         }
     };
 

@@ -16,11 +16,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
         var permisos = this.view.permisosManager.getPermisos();
 
         if (permisos.esAsesorRegular) {
-            console.log(
-                "👤 Asesor regular puro - Cargando solo SU oficina:",
-                permisos.oficinaUsuario
-            );
-
             if (permisos.oficinaUsuario) {
                 this.cargarOficinaEspecifica(
                     permisos.oficinaUsuario,
@@ -35,7 +30,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
             return;
         }
 
-        // ✅ PARA OTROS ROLES CON OFICINA ESPECÍFICA
         if (!permisos.esAdministrativo && !permisos.esCasaNacional) {
             if (permisos.oficinaUsuario) {
                 this.cargarOficinaEspecifica(
@@ -46,31 +40,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
             }
         }
 
-        // ✅ ADMIN Y CASA NACIONAL: todas las oficinas del CLA
-        this.cargarOficinasPorCLA(claId);
-
-        // ✅ CORREGIDO: Para ASESOR REGULAR, cargar TODAS las oficinas de su CLA seleccionado
-        if (permisos.esAsesorRegular) {
-            console.log(
-                "👤 Asesor regular - Cargando TODAS las oficinas del CLA:",
-                claId
-            );
-            this.cargarOficinasPorCLA(claId);
-            return;
-        }
-
-        // ✅ PARA OTROS ROLES CON OFICINA ESPECÍFICA
-        if (!permisos.esAdministrativo && !permisos.esCasaNacional) {
-            if (permisos.oficinaUsuario) {
-                this.cargarOficinaEspecifica(
-                    permisos.oficinaUsuario,
-                    oficinaSelect
-                );
-                return;
-            }
-        }
-
-        // ✅ ADMIN Y CASA NACIONAL: todas las oficinas del CLA
         this.cargarOficinasPorCLA(claId);
     };
 
@@ -87,11 +56,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
         var permisos = this.view.permisosManager.getPermisos();
 
         if (permisos.esAsesorRegular) {
-            console.log(
-                "👤 Asesor regular - Cargando solo SU oficina:",
-                permisos.oficinaUsuario
-            );
-
             if (permisos.oficinaUsuario) {
                 this.cargarOficinaEspecifica(
                     permisos.oficinaUsuario,
@@ -106,7 +70,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
             return;
         }
 
-        // ✅ USAR API OPTIMIZADA
         Espo.Ajax.getRequest("CCustomerSurvey/action/getOficinasByCLA", {
             claId: claId,
         })
@@ -115,7 +78,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                     if (response && response.success && response.data) {
                         var oficinas = response.data;
 
-                        // Filtrar venezuela
                         oficinas = oficinas.filter(function (oficina) {
                             return (
                                 oficina.id.toLowerCase() !== "venezuela" &&
@@ -124,7 +86,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                             );
                         });
 
-                        // Ordenar por nombre
                         oficinas.sort(function (a, b) {
                             return (a.name || "").localeCompare(b.name || "");
                         });
@@ -146,7 +107,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
 
                         oficinaSelect.prop("disabled", false);
 
-                        // ✅ Si hay filtros guardados, restaurar selección
                         if (
                             this.view.filtrosGuardados &&
                             this.view.filtrosGuardados.oficina
@@ -169,7 +129,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                 }.bind(this)
             )
             .catch(function (error) {
-                console.error("Error cargando oficinas:", error);
                 oficinaSelect.html('<option value="">Error al cargar</option>');
                 oficinaSelect.prop("disabled", false);
             });
@@ -236,7 +195,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
     FiltrosOficinasManager.prototype.fetchUsuariosPorCLA = function (claId) {
         return new Promise(
             function (resolve, reject) {
-                // ✅ CORRECCIÓN: Usar la API del backend en lugar de fetchAll
                 Espo.Ajax.getRequest(
                     "CCustomerSurvey/action/getOficinasByCLA",
                     {
@@ -246,10 +204,8 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                     .then(
                         function (response) {
                             if (response && response.success) {
-                                // ✅ La respuesta ya viene con las oficinas filtradas del backend
                                 var oficinas = response.data || [];
 
-                                // Filtrar venezuela por si acaso
                                 oficinas = oficinas.filter(function (oficina) {
                                     return (
                                         oficina.id.toLowerCase() !==
@@ -266,10 +222,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                         }.bind(this)
                     )
                     .catch(function (error) {
-                        console.error(
-                            "Error cargando oficinas por CLA:",
-                            error
-                        );
                         resolve([]);
                     });
             }.bind(this)
@@ -280,9 +232,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
         oficinaId,
         oficinaSelect
     ) {
-        console.log("🔍 Cargando oficina específica (Team):", oficinaId);
-
-        // ✅ Usar Repository de EspoCRM
         this.view.getModelFactory().create(
             "Team",
             function (teamModel) {
@@ -296,9 +245,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                                 name: teamModel.get("name") || oficinaId,
                             };
 
-                            console.log("✅ Oficina cargada:", oficina);
-
-                            // Limpiar y poblar select
                             oficinaSelect.empty();
                             oficinaSelect.append(
                                 '<option value="' +
@@ -308,28 +254,23 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                                     "</option>"
                             );
                             oficinaSelect.val(oficina.id);
-                            oficinaSelect.prop("disabled", false); // ✅ Habilitado para que pueda seleccionar
+                            oficinaSelect.prop("disabled", false);
 
-                            // Actualizar filtros
                             if (this.view.filtrosCLAManager) {
                                 this.view.filtrosCLAManager.filtros.oficina =
                                     oficina.id;
                                 this.view.filtrosCLAManager.filtros.mostrarTodas = false;
                             }
 
-                            // ✅ Cargar asesores de la oficina automáticamente
                             if (this.view.filtrosAsesoresManager) {
                                 this.view.filtrosAsesoresManager.loadAsesores(
                                     oficina.id
                                 );
                             }
-
-                            // NO recargar estadísticas aún, esperar a que seleccione asesor
                         }.bind(this)
                     )
                     .catch(
                         function (error) {
-                            console.error("❌ Error cargando oficina:", error);
                             oficinaSelect.html(
                                 '<option value="">Error al cargar oficina</option>'
                             );
@@ -389,7 +330,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                         "#btn-comparar-oficinas"
                     );
 
-                    // Lógica de visibilidad del botón de asesores
                     if (
                         oficinaId &&
                         claSeleccionado !== "CLA0" &&
@@ -405,7 +345,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                         btnComparacionAsesores.hide();
                     }
 
-                    // Actualizar filtros
                     if (
                         this.view.filtrosCLAManager &&
                         this.view.filtrosCLAManager.filtros
@@ -415,7 +354,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                         this.view.filtrosCLAManager.filtros.asesor = null;
                         this.view.filtrosCLAManager.filtros.mostrarTodas = false;
 
-                        // Cargar asesores si hay oficina seleccionada
                         if (oficinaId && this.view.filtrosAsesoresManager) {
                             this.view.filtrosAsesoresManager.loadAsesores(
                                 oficinaId
@@ -424,8 +362,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                             this.view.filtrosAsesoresManager.limpiarFiltros();
                         }
 
-                        // ✅ NO recargar estadísticas aquí para asesor regular
-                        // Esperar a que seleccione en el select de asesores
                         var permisos = this.view.permisosManager.getPermisos();
                         if (
                             !permisos.esAsesorRegular &&
@@ -452,7 +388,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
             var oficinaNombre = selectOficina.find("option:selected").text();
             var claSeleccionado = selectCLA.val();
 
-            // ✅ Validaciones
             if (!oficinaId) {
                 Espo.Ui.warning("Por favor, selecciona una oficina");
                 return;
@@ -465,12 +400,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                 return;
             }
 
-            console.log(
-                "👥 Navegando a comparación de asesores - Oficina:",
-                oficinaId
-            );
-
-            // ✅ Navegar directamente (sin guardar filtros que puedan interferir)
             try {
                 self.view
                     .getRouter()
@@ -478,8 +407,6 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                         trigger: true,
                     });
             } catch (error) {
-                console.error("Error navegando:", error);
-                // Fallback
                 window.location.hash = "#Principal/asesores/" + oficinaId;
             }
         });

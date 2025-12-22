@@ -7,9 +7,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         template: "reportes-calidad-servicio:estadisticas-asesor",
 
         setup: function () {
-            console.log("🚀 Setup iniciado");
-
-            // ✅ Inicializar flags de control
             this._afterRenderExecuted = false;
             this._chartJSLoadInitiated = false;
             this._chartJSLoading = false;
@@ -27,12 +24,10 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 return;
             }
 
-            // ✅ Datos iniciales desde options
             this.asesorNombre = this.options.asesorNombre || "Cargando...";
             this.oficinaNombre = this.options.oficinaNombre || "Cargando...";
             this.claNombre = this.options.claNombre || "Cargando...";
 
-            // ✅ Solo recuperar de sessionStorage si NO vienen en options
             if (!this.options.asesorNombre && !this.options.datosAsesor) {
                 this.recuperarDatosSessionStorage();
             }
@@ -67,8 +62,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
 
             this.chartLoaded = false;
             this.dataLoaded = false;
-
-            console.log("✅ Setup completado");
         },
 
         data: function () {
@@ -84,7 +77,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         recuperarDatosSessionStorage: function () {
             try {
                 if (typeof sessionStorage === "undefined") {
-                    console.warn("⚠️ sessionStorage no disponible");
                     return;
                 }
 
@@ -108,30 +100,19 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                         this.oficinaNombre;
                     this.claNombre =
                         contexto.datosAsesor.claNombre || this.claNombre;
-                    console.log("✅ Datos recuperados de sessionStorage");
                 }
-            } catch (error) {
-                console.error(
-                    "⚠️ Error recuperando datos de sessionStorage:",
-                    error
-                );
-            }
+            } catch (error) {}
         },
 
         afterRender: function () {
-            // ✅ GUARD: Evitar ejecución múltiple
             if (this._afterRenderExecuted) {
-                console.log("⏭️ afterRender ya ejecutado, saltando...");
                 return;
             }
             this._afterRenderExecuted = true;
 
-            console.log("✅ afterRender ejecutándose por primera vez");
-
             this.setupEventListeners();
             this.agregarEstilosGraficos();
 
-            // ✅ Solo cargar Chart.js si no se ha cargado
             if (!this._chartJSLoadInitiated) {
                 this._chartJSLoadInitiated = true;
                 this.cargarChartJS();
@@ -139,7 +120,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         },
 
         agregarEstilosGraficos: function () {
-            // ✅ GUARD: Evitar agregar estilos múltiples veces
             if (this._estilosAgregados) {
                 return;
             }
@@ -230,11 +210,7 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         },
 
         cargarChartJS: function () {
-            console.log("📊 cargarChartJS ejecutado");
-
-            // ✅ GUARD: Si ya está cargado
             if (this.chartLoaded) {
-                console.log("✅ Chart.js ya estaba cargado");
                 if (!this._datosYaCargados) {
                     this._datosYaCargados = true;
                     this.cargarDatosAsesor();
@@ -242,14 +218,11 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 return;
             }
 
-            // ✅ GUARD: Si ya hay un script cargándose
             if (this._chartJSLoading) {
-                console.log("⏳ Chart.js ya se está cargando...");
                 return;
             }
 
             if (typeof Chart !== "undefined") {
-                console.log("✅ Chart.js detectado globalmente");
                 this.chartLoaded = true;
                 if (!this._datosYaCargados) {
                     this._datosYaCargados = true;
@@ -258,7 +231,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 return;
             }
 
-            console.log("📥 Descargando Chart.js...");
             this._chartJSLoading = true;
 
             const script = document.createElement("script");
@@ -266,7 +238,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 "client/custom/modules/reportes-calidad-servicio/lib/chart.min.js";
 
             script.onload = () => {
-                console.log("✅ Chart.js cargado exitosamente");
                 this._chartJSLoading = false;
                 this.chartLoaded = true;
 
@@ -277,7 +248,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
             };
 
             script.onerror = () => {
-                console.error("❌ Error cargando Chart.js");
                 this._chartJSLoading = false;
                 this.chartLoaded = false;
                 Espo.Ui.warning(
@@ -294,17 +264,13 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         },
 
         cargarDatosAsesor: function () {
-            // ✅ GUARD: Evitar llamadas múltiples simultáneas
             if (this._cargandoDatos) {
-                console.log("⏳ Ya hay una carga de datos en progreso");
                 return;
             }
 
-            console.log("📊 Iniciando carga de datos del asesor");
             this._cargandoDatos = true;
             this.isLoading = true;
 
-            // ✅ Solo reRender si el DOM está listo
             if (this.$el && this.$el.length) {
                 this.reRender();
             }
@@ -314,17 +280,14 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 this.cargarEstadisticasAsesor(),
             ])
                 .then(() => {
-                    console.log("✅ Datos cargados exitosamente");
                     this.dataLoaded = true;
                     this.isLoading = false;
                     this._cargandoDatos = false;
 
-                    // ✅ reRender para mostrar los datos
                     if (this.$el && this.$el.length) {
                         this.reRender();
                     }
 
-                    // ✅ Esperar a que el DOM se actualice
                     setTimeout(() => {
                         if (!this._graficosRenderizados) {
                             this._graficosRenderizados = true;
@@ -334,7 +297,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                     }, 200);
                 })
                 .catch((error) => {
-                    console.error("❌ Error cargando datos:", error);
                     Espo.Ui.error("Error al cargar datos del asesor");
                     this.isLoading = false;
                     this._cargandoDatos = false;
@@ -364,15 +326,10 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                                 email: response.data.email,
                                 telefono: response.data.telefono,
                             };
-                            console.log(
-                                "✅ Info del asesor cargada:",
-                                this.infoAsesor
-                            );
                         }
                         resolve();
                     })
                     .catch((error) => {
-                        console.error("⚠️ Error cargando info asesor:", error);
                         resolve();
                     });
             });
@@ -388,66 +345,40 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                             this.stats = this.procesarEstadisticasReales(
                                 response.data
                             );
-                            console.log(
-                                "✅ Estadísticas cargadas:",
-                                this.stats
-                            );
                         } else {
                             this.stats = this.getStatsIniciales();
                         }
                         resolve();
                     })
                     .catch((error) => {
-                        console.error("⚠️ Error cargando estadísticas:", error);
                         this.stats = this.getStatsIniciales();
                         resolve();
                     });
             });
         },
 
-        // ========================================================================
-        // SOLUCIÓN: Usar los IDs que espera el graficosManager
-        // Reemplaza la función renderCharts() en estadisticas-asesor.js
-        // ========================================================================
-
         renderCharts: function () {
             if (this._renderizandoCharts) {
-                console.log("⏳ Ya hay un renderizado en progreso");
                 return;
             }
 
-            console.log("🎨 Iniciando renderCharts");
-
-            // Validaciones
             if (typeof Chart === "undefined") {
-                console.error("❌ Chart.js no disponible");
                 this.showNoChartsMessage();
                 return;
             }
 
             if (!this.stats || this.stats.totalEncuestas === 0) {
-                console.log("ℹ️ No hay datos para mostrar");
                 this.showNoDataMessage();
                 return;
             }
 
             const container = this.$el.find("#graficos-container");
             if (!container.length) {
-                console.error(
-                    "❌ Contenedor #graficos-container no encontrado"
-                );
                 return;
             }
 
             this._renderizandoCharts = true;
 
-            console.log("📊 Datos disponibles:", {
-                totalEncuestas: this.stats.totalEncuestas,
-                satisfaccionPromedio: this.stats.satisfaccionPromedio,
-                porcentajeRecomendacion: this.stats.porcentajeRecomendacion,
-            });
-
-            // ✅ USAR LOS IDS QUE ESPERA EL GRAFICOSMANAGER
             container.html(`
         <div class="seccion-operaciones mb-4">
             <h3 style="color: #363438; margin-bottom: 25px;">
@@ -556,18 +487,8 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         </div>
     `);
 
-            console.log("✅ HTML insertado con los IDs correctos");
-            console.log("📋 IDs de canvas esperados por graficosManager:");
-            console.log("  - chart-donut");
-            console.log("  - chart-competencias");
-            console.log("  - chart-satisfaccion");
-            console.log("  - chart-recomendacion");
-            console.log("  - chart-medios-contacto");
-
-            // Esperar a que el DOM se actualice
             setTimeout(() => {
                 try {
-                    // Verificar que los canvas existen
                     const canvasIds = [
                         "chart-donut",
                         "chart-competencias",
@@ -576,61 +497,31 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                         "chart-medios-contacto",
                     ];
                     const canvasExisten = canvasIds.map((id) => {
-                        const exists = !!document.getElementById(id);
-                        console.log(
-                            `  ${exists ? "✅" : "❌"} ${id}: ${
-                                exists ? "encontrado" : "NO encontrado"
-                            }`
-                        );
-                        return exists;
+                        return !!document.getElementById(id);
                     });
 
                     if (!canvasExisten.every((e) => e)) {
-                        console.error(
-                            "❌ Algunos canvas no fueron encontrados"
-                        );
                         this._renderizandoCharts = false;
                         return;
                     }
 
-                    // Asignar vista al manager
                     this.graficosManager.view = this;
 
-                    console.log("📊 Llamando a graficosManager.renderCharts()");
-
-                    // Renderizar gráficos usando el manager
                     this.graficosManager.renderCharts();
 
-                    console.log("✅ graficosManager.renderCharts() ejecutado");
-
-                    // Verificar charts creados
                     setTimeout(() => {
                         if (this.graficosManager.charts) {
                             const chartsCreados = Object.keys(
                                 this.graficosManager.charts
                             );
-                            console.log(
-                                `✅ Gráficos creados (${chartsCreados.length}):`,
-                                chartsCreados
-                            );
 
                             if (chartsCreados.length > 0) {
                                 this.actualizarGraficosUnaVez();
-                            } else {
-                                console.warn(
-                                    "⚠️ graficosManager no creó ningún gráfico"
-                                );
                             }
-                        } else {
-                            console.error(
-                                "❌ graficosManager.charts no existe"
-                            );
                         }
                         this._renderizandoCharts = false;
                     }, 200);
                 } catch (error) {
-                    console.error("❌ Error renderizando charts:", error);
-                    console.error("Stack trace:", error.stack);
                     this._renderizandoCharts = false;
                 }
             }, 200);
@@ -643,7 +534,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
 
             try {
                 if (this.graficosManager && this.graficosManager.charts) {
-                    console.log("🔄 Actualizando gráficos...");
                     Object.values(this.graficosManager.charts).forEach(
                         (chart) => {
                             if (chart && typeof chart.resize === "function") {
@@ -653,11 +543,8 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                         }
                     );
                     this._graficosActualizados = true;
-                    console.log("✅ Gráficos actualizados");
                 }
-            } catch (error) {
-                console.error("❌ Error actualizando gráficos:", error);
-            }
+            } catch (error) {}
         },
 
         cargarComentariosAsesor: function () {
@@ -819,8 +706,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         },
 
         volverAComparacion: function () {
-            console.log("🔙 Botón Volver presionado");
-
             const contextoDetalle = this.obtenerContextoDetalle();
             if (contextoDetalle) {
                 if (
@@ -870,9 +755,7 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
                 if (contexto) {
                     return JSON.parse(contexto);
                 }
-            } catch (error) {
-                console.error("Error cargando contexto detalle:", error);
-            }
+            } catch (error) {}
             return null;
         },
 
@@ -980,9 +863,6 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
         },
 
         onRemove: function () {
-            console.log("🧹 Limpiando vista...");
-
-            // ✅ Resetear todos los flags
             this._afterRenderExecuted = false;
             this._chartJSLoadInitiated = false;
             this._chartJSLoading = false;
@@ -1002,12 +882,8 @@ define("reportes-calidad-servicio:views/estadisticas-asesor", [
             ) {
                 try {
                     this.graficosManager.destroyCharts();
-                } catch (error) {
-                    console.error("Error destruyendo charts:", error);
-                }
+                } catch (error) {}
             }
-
-            console.log("✅ Vista limpiada");
         },
     });
 });

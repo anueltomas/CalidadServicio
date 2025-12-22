@@ -4,9 +4,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
 
         setup: function () {
             try {
-                console.log("👥 Vista de comparación de asesores inicializada");
-
-                // Obtener oficinaId
                 this.oficinaId =
                     this.options.oficinaId ||
                     (this.getRouter() && this.getRouter().getCurrentUrlParams
@@ -19,7 +16,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 this.cargarPermisosUsuario();
 
                 if (!this.oficinaId) {
-                    console.error("❌ No se pudo obtener el ID de oficina");
                     Espo.Ui.error("No se pudo identificar la oficina");
                     if (this.getRouter()) {
                         this.getRouter().navigate("#Principal", {
@@ -29,7 +25,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     return;
                 }
 
-                // Colores
                 this.colors = {
                     relentlessGold: "#B8A279",
                     darkGold: "#363438",
@@ -48,7 +43,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     danger: "#e74c3c",
                 };
 
-                // Estado inicial
                 this.datosAsesores = [];
                 this.isLoading = true;
                 this.nombreOficina = "Cargando...";
@@ -56,7 +50,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 this.claId = null;
                 this.oficinasList = [];
 
-                // Contexto de navegación
                 if (this.options.claId) {
                     sessionStorage.setItem(
                         "navegacion_previa",
@@ -70,7 +63,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
 
                 this.contextoNavegacion = this.obtenerContextoNavegacion();
             } catch (error) {
-                console.error("❌ Error en setup de vista asesores:", error);
                 this.mostrarErrorInicial(error);
             }
         },
@@ -84,10 +76,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 .then(function (response) {
                     if (response.success && response.data) {
                         self.permisosUsuario = response.data;
-                        console.log(
-                            "🔐 Permisos del usuario cargados:",
-                            self.permisosUsuario
-                        );
                         return response;
                     } else {
                         self.permisosUsuario = {
@@ -98,7 +86,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     }
                 })
                 .catch(function (error) {
-                    console.error("❌ Error cargando permisos usuario:", error);
                     self.permisosUsuario = {
                         esAsesorRegular: false,
                         usuarioId: self.userId,
@@ -107,7 +94,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
         },
 
         mostrarErrorInicial: function (error) {
-            console.error("Error crítico:", error);
             setTimeout(() => {
                 if (this.$el && this.$el.length) {
                     this.$el.html(`
@@ -129,9 +115,7 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 if (contexto) {
                     return JSON.parse(contexto);
                 }
-            } catch (error) {
-                console.error("Error cargando contexto:", error);
-            }
+            } catch (error) {}
             return null;
         },
 
@@ -147,10 +131,7 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
 
         afterRender: function () {
             try {
-                console.log("✅ afterRender ejecutado");
-
                 if (!this.$el || this.$el.length === 0) {
-                    console.error("❌ $el no está disponible");
                     return;
                 }
 
@@ -160,29 +141,18 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     try {
                         this.setupEventListeners();
                         this.cargarDatosOficinaYAsesores();
-                    } catch (error) {
-                        console.error(
-                            "❌ Error en afterRender timeout:",
-                            error
-                        );
-                    }
+                    } catch (error) {}
                 }, 50);
-            } catch (error) {
-                console.error("❌ Error en afterRender:", error);
-            }
+            } catch (error) {}
         },
 
         cargarInfoOficinaYCLA: function () {
-            console.log("📊 Cargando información de oficina y CLA...");
-
             return Espo.Ajax.getRequest(
                 "CCustomerSurvey/action/getInfoOficina",
                 { oficinaId: this.oficinaId }
             )
                 .then(
                     function (response) {
-                        console.log("✅ Info oficina recibida:", response);
-
                         if (response.success && response.data) {
                             this.nombreOficina =
                                 response.data.nombreOficina ||
@@ -198,7 +168,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 )
                 .catch(
                     function (error) {
-                        console.error("❌ Error cargando info oficina:", error);
                         this.nombreOficina = `Oficina ${this.oficinaId}`;
                     }.bind(this)
                 );
@@ -220,9 +189,7 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     );
                     claElement.css("color", this.colors.textMedium);
                 }
-            } catch (error) {
-                console.error("❌ Error en actualizarHeaderInfo:", error);
-            }
+            } catch (error) {}
         },
 
         actualizarSelectorOficinas: function () {
@@ -246,14 +213,10 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 );
 
                 selectOficina.prop("disabled", false);
-            } catch (error) {
-                console.error("❌ Error en actualizarSelectorOficinas:", error);
-            }
+            } catch (error) {}
         },
 
         cargarDatosOficinaYAsesores: function () {
-            console.log("📊 Cargando datos de oficina y asesores...");
-
             this.cargarInfoOficinaYCLA()
                 .then(
                     function () {
@@ -265,11 +228,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 )
                 .then(
                     function (response) {
-                        console.log(
-                            "✅ Datos de asesores recibidos:",
-                            response
-                        );
-
                         if (response.success && response.data) {
                             this.datosAsesores = response.data;
                             if (response.usuarioActualId) {
@@ -289,7 +247,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 )
                 .catch(
                     function (error) {
-                        console.error("❌ Error cargando datos:", error);
                         Espo.Ui.error("Error al conectar con el servidor");
                         this.datosAsesores = [];
                         this.isLoading = false;
@@ -300,8 +257,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
 
         setupEventListeners: function () {
             try {
-                console.log("🔧 Configurando event listeners");
-
                 const volverBtn = this.$el.find('[data-action="volver"]');
                 const exportarBtn = this.$el.find('[data-action="exportar"]');
                 const selectorOficina = this.$el.find("#selector-oficina");
@@ -310,7 +265,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     volverBtn.off("click").on("click", (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log("🔙 Botón volver clickeado");
                         this.volverAVistaAnterior();
                     });
                 }
@@ -352,13 +306,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                         row.data("clicable") === true ||
                         row.data("clicable") === "true";
 
-                    console.log(
-                        "🔗 Click en fila asesor ID:",
-                        asesorId,
-                        "¿Clickeable?",
-                        esClickeable
-                    );
-
                     if (!esClickeable) {
                         if (
                             this.permisosUsuario &&
@@ -375,32 +322,17 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                         this.verDetalleAsesor(asesorId);
                     }
                 });
-
-                console.log("✅ Event listeners configurados");
-            } catch (error) {
-                console.error("❌ Error en setupEventListeners:", error);
-            }
+            } catch (error) {}
         },
 
         volverAVistaAnterior: function () {
             try {
-                console.log("🔙 Volviendo a vista anterior");
-
                 if (this.contextoNavegacion) {
-                    console.log(
-                        "📍 Contexto encontrado:",
-                        this.contextoNavegacion
-                    );
-
                     if (
                         this.contextoNavegacion.desde ===
                             "comparacion-oficinas" &&
                         this.contextoNavegacion.claId
                     ) {
-                        console.log(
-                            "📍 Volviendo a oficinas del CLA:",
-                            this.contextoNavegacion.claId
-                        );
                         sessionStorage.removeItem("contextoNavegacion");
 
                         if (this.getRouter()) {
@@ -414,10 +346,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 }
 
                 if (this.options.previousRoute) {
-                    console.log(
-                        "📍 Usando previousRoute:",
-                        this.options.previousRoute
-                    );
                     if (this.getRouter()) {
                         this.getRouter().navigate(this.options.previousRoute, {
                             trigger: true,
@@ -432,10 +360,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     try {
                         const datos = JSON.parse(navegacionPrevia);
                         if (datos.vistaAnterior === "oficinas" && datos.claId) {
-                            console.log(
-                                "📍 Volviendo a oficinas:",
-                                datos.claId
-                            );
                             if (this.getRouter()) {
                                 this.getRouter().navigate(
                                     `#Principal/oficinas/${datos.claId}`,
@@ -444,22 +368,15 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                             }
                             return;
                         }
-                    } catch (error) {
-                        console.error(
-                            "Error parseando navegación previa:",
-                            error
-                        );
-                    }
+                    } catch (error) {}
                 }
 
-                console.log("📍 Último fallback: volviendo a Principal");
                 if (this.getRouter()) {
                     this.getRouter().navigate("#Principal", { trigger: true });
                 } else {
                     window.location.hash = "#Principal";
                 }
             } catch (error) {
-                console.error("❌ Error en volverAVistaAnterior:", error);
                 window.location.hash = "#Principal";
             }
         },
@@ -497,29 +414,20 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
 
                 Espo.Ui.success("Reporte exportado exitosamente");
             } catch (error) {
-                console.error("❌ Error exportando reporte:", error);
                 Espo.Ui.error("Error al exportar el reporte");
             }
         },
 
         verDetalleAsesor: function (asesorId) {
             try {
-                console.log(
-                    "🚀 Intentando navegar a estadísticas del asesor:",
-                    asesorId
-                );
-
                 if (!asesorId) {
-                    console.error("❌ ID de asesor no válido");
                     Espo.Ui.warning("No se pudo identificar el asesor");
                     return;
                 }
 
-                // ✅ CONVERTIR ID A STRING para comparación
                 const asesorIdBuscado = asesorId.toString();
                 let asesorSeleccionado = null;
 
-                // Buscar el asesor en los datos
                 if (this.datosAsesores && this.datosAsesores.length > 0) {
                     asesorSeleccionado = this.datosAsesores.find(
                         (asesor) =>
@@ -529,9 +437,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     );
                 }
 
-                console.log("📊 Asesor encontrado:", asesorSeleccionado);
-
-                // Preparar datos para navegación
                 const datosAsesor = {
                     id: asesorIdBuscado,
                     nombre:
@@ -554,9 +459,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                         0,
                 };
 
-                console.log("✅ Datos preparados:", datosAsesor);
-
-                // Guardar en sessionStorage
                 sessionStorage.setItem(
                     "contextoDetalleAsesor",
                     JSON.stringify({
@@ -568,7 +470,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     })
                 );
 
-                // Navegar
                 const router = this.getRouter();
                 if (router) {
                     router.navigate(
@@ -585,12 +486,10 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                             datosAsesor: datosAsesor,
                         }
                     );
-                    console.log("✅ Navegación exitosa");
                 } else {
                     window.location.hash = `#Principal/estadisticasAsesor/${asesorIdBuscado}`;
                 }
             } catch (error) {
-                console.error("❌ Error en verDetalleAsesor:", error);
                 Espo.Ui.error("Error al navegar al detalle del asesor");
             }
         },
@@ -607,9 +506,7 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                         </div>
                     `);
                 }
-            } catch (error) {
-                console.error("❌ Error en showLoadingState:", error);
-            }
+            } catch (error) {}
         },
 
         updateUI: function () {
@@ -624,7 +521,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     container.html(this.getAsesoresHTML());
                 }
             } catch (error) {
-                console.error("❌ Error en updateUI:", error);
                 this.mostrarErrorUI(error);
             }
         },
@@ -656,9 +552,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                         <i class="fas fa-user-tie fa-4x mb-3" style="color: ${this.colors.lightGrey};"></i>
                         <h4 style="color: ${this.colors.secondary};">No hay datos de asesores disponibles</h4>
                         <p style="color: ${this.colors.textMedium};">No se encontraron datos para la oficina <strong style="color: ${this.colors.primary};">${this.nombreOficina}</strong>.</p>
-                        <button class="btn btn-default mt-2" data-action="volver" style="border-color: ${this.colors.lightGrey}; color: ${this.colors.secondary};">
-                            <i class="fas fa-arrow-left me-1"></i> Volver
-                        </button>
                     </div>
                 </div>
             `;
@@ -741,12 +634,10 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                     const asesorIdStr = asesor.id ? asesor.id.toString() : "";
                     const userIdStr = this.userId ? this.userId.toString() : "";
                     var esUsuarioActual = asesorIdStr === userIdStr;
-                    var esClickeable = true; // Por defecto permitir
+                    var esClickeable = true;
 
                     if (this.permisosUsuario) {
-                        // ✅ NUEVA LÓGICA: Solo restringir si es asesor regular puro
                         if (this.permisosUsuario.esAsesorRegular) {
-                            // Verificar si tiene roles de gestión
                             const tieneRolesGestion =
                                 this.permisosUsuario.esGerente ||
                                 this.permisosUsuario.esCoordinador ||
@@ -754,7 +645,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                                 this.permisosUsuario.esAfiliado ||
                                 this.permisosUsuario.esCasaNacional;
 
-                            // Si es asesor regular puro (sin roles de gestión), solo puede ver su perfil
                             if (!tieneRolesGestion) {
                                 esClickeable = esUsuarioActual;
                             }
@@ -900,7 +790,6 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
 
                 return html;
             } catch (error) {
-                console.error("❌ Error en getAsesoresHTML:", error);
                 return `<div class="alert alert-danger">Error al generar la tabla: ${error.message}</div>`;
             }
         },
@@ -947,9 +836,7 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                 this.$el.off("click", '[data-action="exportar"]');
                 this.$el.off("change", "#selector-oficina");
                 this.$el.off("click", ".asesor-row");
-            } catch (error) {
-                console.error("Error en onRemove:", error);
-            }
+            } catch (error) {}
         },
     });
 });

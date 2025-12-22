@@ -1,58 +1,50 @@
 define("reportes-calidad-servicio:views/modules/graficos", [], function () {
-    // Paleta de colores consistente
     const COLORES = {
-        // Gama principal (dorados)
         DORADO_OSCURO: "#9D8B64",
         DORADO_RELENTLESS: "#A89968",
         DORADO_CLARO: "#B8A279",
-
-        // Gama de grises
         GRIS_OBSESIVO: "#1A1A1A",
         GRIS_MEDIO: "#666666",
         GRIS_CLARO: "#999999",
         GRIS_MUY_CLARO: "#CCCCCC",
         GRIS_FONDO: "#E6E6E6",
         GRIS_WHITE: "#FFFFFF",
-
-        // Colores funcionales
-        EXCELENTE: "#9D8B64", // Dorado oscuro
-        MUY_BUENO: "#A89968", // Dorado relentless
-        BUENO: "#B8A279", // Dorado claro
-        REGULAR: "#666666", // Gris medio
-        DEFICIENTE: "#999999", // Gris claro
+        EXCELENTE: "#9D8B64",
+        MUY_BUENO: "#A89968",
+        BUENO: "#B8A279",
+        REGULAR: "#666666",
+        DEFICIENTE: "#999999",
     };
 
-    // TAMAÑOS UNIFICADOS PARA TODOS LOS GRÁFICOS
     const TAMANOS_GRAFICOS = {
         DONUT: {
-            altura: 280, // Altura para gráficos donut/pie
+            altura: 280,
             ancho: "100%",
-            aspectRatio: 1.2, // Relación aspecto
+            aspectRatio: 1.2,
         },
         BARRAS_HORIZONTALES: {
-            altura: 350, // Altura para gráficos de barras horizontales
+            altura: 350,
             ancho: "100%",
             aspectRatio: 1.8,
         },
         BARRAS_VERTICALES: {
-            altura: 300, // Altura para gráficos de barras verticales
+            altura: 300,
             ancho: "100%",
             aspectRatio: 1.5,
         },
         PIE: {
-            altura: 250, // Altura para gráficos pie
+            altura: 250,
             ancho: "100%",
             aspectRatio: 1.2,
         },
         COMPARACION: {
-            altura: 400, // Altura para gráficos de comparación
+            altura: 400,
             ancho: "100%",
             aspectRatio: 1.6,
         },
     };
 
     const OPCIONES_GRAFICOS = {
-        // Opciones para gráficos donut/pie
         DONUT: {
             responsive: true,
             maintainAspectRatio: false,
@@ -75,7 +67,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
             },
         },
 
-        // Opciones para gráficos de barras horizontales (competencias)
         BARRAS_HORIZONTALES: {
             indexAxis: "y",
             responsive: true,
@@ -109,7 +100,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
             },
         },
 
-        // Opciones para gráficos de barras verticales (satisfacción)
         BARRAS_VERTICALES: {
             responsive: true,
             maintainAspectRatio: false,
@@ -139,7 +129,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
             },
         },
 
-        // Opciones para gráficos pie
         PIE: {
             responsive: true,
             maintainAspectRatio: false,
@@ -158,7 +147,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
             },
         },
 
-        // Opciones para gráficos radar
         RADAR: {
             responsive: true,
             maintainAspectRatio: false,
@@ -191,7 +179,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
         },
     };
 
-    // Escala de colores para porcentajes
     const ESCALA_COLORES = {
         80: COLORES.EXCELENTE,
         70: COLORES.MUY_BUENO,
@@ -208,7 +195,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
         this.tamanos = TAMANOS_GRAFICOS;
     };
 
-    // ========== MÉTODO PARA AJUSTAR TAMAÑOS DE GRÁFICOS ==========
     GraficosManager.prototype.configurarContenedorGrafico = function (
         elementId,
         tipoGrafico
@@ -224,37 +210,31 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
             wrapper.appendChild(canvas);
         }
 
-        // Aplicar tamaños uniformes
         wrapper.style.position = "relative";
         wrapper.style.width = TAMANOS_GRAFICOS[tipoGrafico].ancho;
         wrapper.style.height = TAMANOS_GRAFICOS[tipoGrafico].altura + "px";
         wrapper.style.minHeight = TAMANOS_GRAFICOS[tipoGrafico].altura + "px";
         wrapper.style.maxHeight = TAMANOS_GRAFICOS[tipoGrafico].altura + "px";
 
-        // Configurar canvas
         canvas.style.width = "100%";
         canvas.style.height = "100%";
         canvas.style.display = "block";
     };
 
-    // ========== MÉTODO UNIFICADO PARA RENDERIZAR GRÁFICOS ==========
     GraficosManager.prototype.renderCharts = function () {
         if (!this.view) {
             this.mostrarMensajeSinDatos();
             return;
         }
 
-        // Obtener estadísticas de diferentes fuentes
         var stats;
 
         if (this.view.stats) {
-            // Para vista estadisticas-asesor
             stats = this.view.stats;
         } else if (
             this.view.estadisticasManager &&
             this.view.estadisticasManager.stats
         ) {
-            // Para vista principal
             stats = this.view.estadisticasManager.stats;
         } else {
             this.mostrarMensajeSinDatos();
@@ -278,7 +258,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
         var distribucionCalificaciones = stats.distribucionCalificaciones || {};
 
         try {
-            // Gráficos que existen en ambas vistas
             if (document.getElementById("chart-donut")) {
                 this.configurarContenedorGrafico("chart-donut", "DONUT");
                 this.renderDonutChart(distribucion);
@@ -316,7 +295,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                 this.renderMediosContactoChart(stats.mediosContacto || {});
             }
 
-            // Gráficos específicos de la vista principal
             if (document.getElementById("chart-recomendacion")) {
                 this.configurarContenedorGrafico("chart-recomendacion", "PIE");
                 this.renderRecomendacionChart(
@@ -340,7 +318,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                 this.renderOficinasChart(stats.estadisticasOficinas || []);
             }
 
-            // Gráficos adicionales
             if (document.getElementById("chart-barras")) {
                 this.configurarContenedorGrafico(
                     "chart-barras",
@@ -371,7 +348,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                 this.renderDistributionChart(distribucionCalificaciones);
             }
 
-            // Gráficos de comparación
             if (document.querySelector("[id^='chart-comparacion-']")) {
                 this.configurarContenedorGrafico(
                     document.querySelector("[id^='chart-comparacion-']").id,
@@ -379,31 +355,25 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                 );
             }
         } catch (error) {
-            console.error("Error general:", error);
             this.mostrarErrorChartJS();
         }
 
-        // Forzar redimensionamiento después de renderizar
         setTimeout(() => {
             this.redimensionarTodosLosGraficos();
         }, 100);
     };
 
-    // ========== MÉTODO PARA REDIMENSIONAR TODOS LOS GRÁFICOS ==========
     GraficosManager.prototype.redimensionarTodosLosGraficos = function () {
         Object.values(this.charts).forEach(function (chart) {
             if (chart && typeof chart.resize === "function") {
                 try {
                     chart.resize();
                     chart.update("none");
-                } catch (error) {
-                    console.warn("Error al redimensionar gráfico:", error);
-                }
+                } catch (error) {}
             }
         });
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE COMPARACIÓN ==========
     GraficosManager.prototype.renderGraficoComparacion = function (config) {
         if (typeof Chart === "undefined") {
             return;
@@ -412,18 +382,15 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
         var ctx = document.getElementById("chart-comparacion-" + config.tipo);
         if (!ctx) return;
 
-        // Configurar tamaño uniforme
         this.configurarContenedorGrafico(
             "chart-comparacion-" + config.tipo,
             "COMPARACION"
         );
 
-        // Destruir gráfico anterior si existe
         if (this.charts["comparacion_" + config.tipo]) {
             this.charts["comparacion_" + config.tipo].destroy();
         }
 
-        // Ordenar datos
         var datosOrdenados = config.data.sort(function (a, b) {
             return b.porcentaje - a.porcentaje;
         });
@@ -439,7 +406,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
             return item.porcentaje || 0;
         });
 
-        // Colores basados en porcentaje usando la paleta
         var backgroundColors = data.map(function (porcentaje) {
             if (porcentaje >= 80) return COLORES.EXCELENTE;
             if (porcentaje >= 70) return COLORES.MUY_BUENO;
@@ -538,12 +504,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error("Error renderizando gráfico de comparación:", error);
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DONUT ==========
     GraficosManager.prototype.renderDonutChart = function (distribucion) {
         var ctxDonut = document.getElementById("chart-donut");
         if (!ctxDonut) return;
@@ -603,12 +566,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error("Error renderizando gráfico donut:", error);
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE COMPETENCIAS ==========
     GraficosManager.prototype.renderCompetenciasChart = function (promedios) {
         var ctx = document.getElementById("chart-competencias");
         if (!ctx) return;
@@ -676,12 +636,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error("Error renderizando gráfico de competencias:", error);
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE SATISFACCIÓN ==========
     GraficosManager.prototype.renderSatisfaccionChart = function (
         distribucionCalificaciones
     ) {
@@ -768,12 +725,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error("Error renderizando gráfico de satisfacción:", error);
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE CALIFICACIÓN GENERAL ==========
     GraficosManager.prototype.renderCalificacionGeneralChart = function (
         distribucionCalificaciones
     ) {
@@ -873,15 +827,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error(
-                "Error renderizando gráfico de calificación general:",
-                error
-            );
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE MEDIOS DE CONTACTO ==========
     GraficosManager.prototype.renderMediosContactoChart = function (
         mediosContacto
     ) {
@@ -934,15 +882,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     ...OPCIONES_GRAFICOS.BARRAS_HORIZONTALES,
                 },
             });
-        } catch (error) {
-            console.error(
-                "Error renderizando gráfico de medios de contacto:",
-                error
-            );
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE RECOMENDACIÓN ==========
     GraficosManager.prototype.renderRecomendacionChart = function (
         recomendacion
     ) {
@@ -1020,15 +962,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error(
-                "Error renderizando gráfico de recomendación:",
-                error
-            );
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE CALIFICACIÓN OFICINA ==========
     GraficosManager.prototype.renderCalificacionOficinaChart = function (
         promedios
     ) {
@@ -1118,15 +1054,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error(
-                "Error renderizando gráfico de calificación oficina:",
-                error
-            );
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE OFICINAS ==========
     GraficosManager.prototype.renderOficinasChart = function (
         estadisticasOficinas
     ) {
@@ -1259,12 +1189,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error("Error renderizando gráfico de oficinas:", error);
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE BARRAS VERTICALES ==========
     GraficosManager.prototype.renderBarChart = function (
         venta,
         compra,
@@ -1325,12 +1252,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error("Error renderizando gráfico de barras:", error);
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO RADAR ==========
     GraficosManager.prototype.renderRadarChart = function (promedios) {
         var ctxRadar = document.getElementById("chart-radar");
         if (!ctxRadar) return;
@@ -1380,12 +1304,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                 },
                 options: OPCIONES_GRAFICOS.RADAR,
             });
-        } catch (error) {
-            console.error("Error renderizando gráfico radar:", error);
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO HORIZONTAL ==========
     GraficosManager.prototype.renderHorizontalBarChart = function (promedios) {
         var ctxHorizontal = document.getElementById("chart-horizontal");
         if (!ctxHorizontal) return;
@@ -1486,12 +1407,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error("Error renderizando gráfico horizontal:", error);
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODO PARA RENDERIZAR GRÁFICO DE DISTRIBUCIÓN ==========
     GraficosManager.prototype.renderDistributionChart = function (
         distribucionCalificaciones
     ) {
@@ -1575,12 +1493,9 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
                     },
                 },
             });
-        } catch (error) {
-            console.error("Error renderizando gráfico de distribución:", error);
-        }
+        } catch (error) {}
     };
 
-    // ========== MÉTODOS AUXILIARES ==========
     GraficosManager.prototype.destroyCharts = function () {
         Object.values(this.charts).forEach(function (chart) {
             if (chart && typeof chart.destroy === "function") {
@@ -1626,7 +1541,6 @@ define("reportes-calidad-servicio:views/modules/graficos", [], function () {
         }
     };
 
-    // ========== MÉTODO PARA REGISTRAR PLUGINS CHART ==========
     GraficosManager.prototype.registrarPluginsChart = function () {
         if (typeof Chart === "undefined") return;
 

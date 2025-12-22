@@ -14,9 +14,9 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
             asesoresDestacados: [],
             promediosCategorias: {},
             distribucionCalificaciones: {},
-            recomendacion: { si: 0, no: 0 }, // ✅ AGREGADO
-            mediosContacto: {}, // ✅ AGREGADO
-            estadisticasOficinas: [], // ✅ AGREGADO
+            recomendacion: { si: 0, no: 0 },
+            mediosContacto: {},
+            estadisticasOficinas: [],
             efectividadComunicacion: 0,
             asesoriaLegal: 0,
             presentacionPersonal: 0,
@@ -39,19 +39,8 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
         var filtros = this.view.filtrosCLAManager.getFiltros();
         var params = {};
 
-        console.log(
-            "🔍 DEBUG EstadisticasManager - Filtros recibidos:",
-            filtros
-        );
-
-        // ✅ CORRECCIÓN: Verificar específicamente para CLA0
         if (filtros.mostrarTodas) {
-            console.log(
-                "🔍 DEBUG - Modo 'mostrarTodas' activado (Territorio Nacional)"
-            );
-            // No enviar parámetros de filtro para Territorio Nacional
         } else {
-            console.log("🔍 DEBUG - Modo filtrado específico");
             if (filtros.cla) {
                 params.claId = filtros.cla;
             }
@@ -65,13 +54,9 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
             }
         }
 
-        console.log("🔍 DEBUG - Parámetros para backend:", params);
-        console.log("🔍 DEBUG - URL llamada: CCustomerSurvey/action/getStats");
-
         Espo.Ajax.getRequest("CCustomerSurvey/action/getStats", params)
             .then(
                 function (response) {
-                    console.log("✅ DEBUG - Respuesta del backend:", response);
                     if (response && response.success && response.data) {
                         this.stats = this.procesarEstadisticasReales(
                             response.data
@@ -79,23 +64,14 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                         this.view.hasData = this.stats.totalEncuestas > 0;
                         this.view.isLoading = false;
 
-                        console.log(
-                            "✅ DEBUG - Estadísticas procesadas:",
-                            this.stats
-                        );
                         this.updateUI();
                     } else {
-                        console.error(
-                            "❌ DEBUG - Error en respuesta del backend:",
-                            response
-                        );
                         this.handleNoData();
                     }
                 }.bind(this)
             )
             .catch(
                 function (error) {
-                    console.error("❌ DEBUG - Error en petición:", error);
                     this.handleNoData();
                 }.bind(this)
             );
@@ -174,7 +150,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
 
                     try {
                         this.view.graficosManager.renderCharts();
-                        // ✅ AGREGAR: Cargar comentarios si es vista de asesor
                         var filtros = this.view.filtrosCLAManager.getFiltros();
                         if (filtros.asesor) {
                             this.cargarComentariosAsesor();
@@ -236,9 +211,7 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                 "</span>";
         }
 
-        // ✅ NUEVO: Renderizado condicional según el filtro activo
         if (filtros.asesor) {
-            // Vista específica para asesor individual
             return this.getAsesorDetailHTML(
                 stats,
                 filtros,
@@ -252,7 +225,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                 alquilerPct
             );
         } else {
-            // Vista general (territorio, CLA, oficina)
             return this.getGeneralViewHTML(
                 stats,
                 filtros,
@@ -282,7 +254,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
     ) {
         return `
         <div class="reporte-container">
-            <!-- Información de Encuesta -->
             <div class="info-encuesta-card">
                 <h3 class="info-title">Información de Encuesta ${tituloFiltro}</h3>
                 <table class="info-table">
@@ -305,7 +276,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                 </table>
             </div>
 
-            <!-- Sección de Operaciones -->
             <div class="seccion-operaciones">
                 <h2 class="titulo-seccion">¿Qué tipo de operación realizó?</h2>
                 
@@ -352,7 +322,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                     </div>
                 </div>
 
-                <!-- Evaluación del servicio prestado -->
                 <div class="graficos-secundarios" style="margin-top: 40px;">
                     <div class="grafico-card grande">
                         <h3 class="grafico-titulo">Evaluación del servicio prestado por el Asesor Inmobiliario</h3>
@@ -362,7 +331,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                     </div>
                 </div>
 
-                <!-- Evaluación de Satisfacción -->
                 <div class="graficos-secundarios" style="margin-top: 40px;">
                     <div class="grafico-card grande">
                         <h3 class="grafico-titulo">Evaluación de la satisfacción del servicio</h3>
@@ -372,7 +340,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                     </div>
                 </div>
 
-                <!-- Cómo percibió el servicio -->
                 <div class="graficos-secundarios" style="margin-top: 40px;">
                     <div class="grafico-card">
                         <h3 class="grafico-titulo">¿Cómo percibió el servicio prestado por el Asesor?</h3>
@@ -382,7 +349,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                     </div>
                 </div>
 
-                <!-- Medio de contacto -->
                 <div class="graficos-secundarios" style="margin-top: 40px;">
                     <div class="grafico-card">
                         <h3 class="grafico-titulo">¿Por cuál medio se puso en contacto?</h3>
@@ -392,7 +358,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                     </div>
                 </div>
 
-                <!-- ✅ NUEVO: Comentarios del asesor -->
                 <div class="graficos-secundarios" style="margin-top: 40px;">
                     <div class="grafico-card grande">
                         <h3 class="grafico-titulo">💬 Comentarios y Sugerencias de los Clientes</h3>
@@ -423,8 +388,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
     ) {
         let nombreCLA = "Territorio Nacional";
 
-        console.log("TITULO: ", filtros);
-
         if (filtros.cla && filtros.cla !== "CLA0") {
             const claSelect = this.view.$el.find("#cla-select");
             if (claSelect.length) {
@@ -435,7 +398,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
 
         return `
         <div class="reporte-container">
-            <!-- Información de Encuesta -->
             <div class="info-encuesta-card">
                 <h3 class="info-title">Información de Encuesta ${tituloFiltro}</h3>
                 <table class="info-table">
@@ -458,7 +420,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                 </table>
             </div>
 
-            <!-- Sección de Tipo de Operación -->
             <div class="seccion-operaciones">
                 <h2 class="titulo-seccion">¿Qué tipo de operación realizó?</h2>
                 
@@ -580,13 +541,11 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
             )
             .catch(
                 function (error) {
-                    console.error("Error cargando comentarios:", error);
                     this.renderComentarios([]);
                 }.bind(this)
             );
     };
 
-    // ✅ NUEVO: Renderizar lista de comentarios (hasta 10 por asesor)
     EstadisticasManager.prototype.renderComentarios = function (comentarios) {
         var container = document.getElementById("comentarios-container");
 
@@ -604,15 +563,12 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
             return;
         }
 
-        // ✅ CORREGIDO: Mostrar hasta 10 comentarios por asesor
         var comentariosLimitados = comentarios.slice(0, 10);
 
-        // Configuración de paginación - solo si hay más de 10 comentarios
-        var itemsPorPagina = 10; // ✅ CAMBIADO: de 5 a 10
+        var itemsPorPagina = 10;
         var paginaActual = 1;
         var totalPaginas = Math.ceil(comentarios.length / itemsPorPagina);
 
-        // Función para renderizar una página específica
         var renderizarPagina = function (pagina) {
             var inicio = (pagina - 1) * itemsPorPagina;
             var fin = Math.min(inicio + itemsPorPagina, comentarios.length);
@@ -723,13 +679,12 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
             comentariosPagina.forEach(function (comentario, index) {
                 var indiceGlobal = inicio + index + 1;
 
-                // Determinar color de borde según calificación
-                var colorBorde = "#B8A279"; // Default
+                var colorBorde = "#B8A279";
                 if (comentario.calificacionGeneral) {
                     if (comentario.calificacionGeneral >= 4) {
-                        colorBorde = "#27ae60"; // Verde para calificaciones altas
+                        colorBorde = "#27ae60";
                     } else if (comentario.calificacionGeneral <= 2) {
-                        colorBorde = "#e74c3c"; // Rojo para calificaciones bajas
+                        colorBorde = "#e74c3c";
                     }
                 }
 
@@ -846,7 +801,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
         `;
             });
 
-            // Botones de navegación en la parte inferior (solo si hay más de una página)
             if (totalPaginas > 1) {
                 html += `
                 <div style="
@@ -1019,16 +973,13 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
             container.innerHTML = html;
         };
 
-        // Función global para cambiar de página
         window.cambiarPagina = function (nuevaPagina) {
             if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
             paginaActual = nuevaPagina;
             renderizarPagina(paginaActual);
         };
 
-        // ✅ CORRECCIÓN: Renderizar los primeros 10 comentarios automáticamente
         if (comentarios.length <= 10) {
-            // Si hay 10 o menos comentarios, mostrar todos
             var html = `
                 <div class="comentarios-list">
                     <div style="
@@ -1179,7 +1130,6 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
             html += `</div>`;
             container.innerHTML = html;
         } else {
-            // Si hay más de 10 comentarios, usar paginación
             renderizarPagina(1);
         }
     };
