@@ -17,9 +17,6 @@
                     <button class="btn btn-default btn-sm me-2" data-action="volver" style="border-color: #E6E6E6; color: #363438;">
                         <i class="fas fa-arrow-left me-1"></i> Volver
                     </button>
-                    <button class="btn btn-success btn-sm" data-action="exportar" style="background-color: #B8A279; border-color: #B8A279;">
-                        <i class="fas fa-file-excel me-1"></i> Exportar
-                    </button>
                 </div>
             </div>
         </div>

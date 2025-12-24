@@ -47,9 +47,6 @@
                             <button class="btn btn-action btn-refrescar" data-action="refrescar">
                                 <i class="fas fa-sync-alt me-2"></i> Actualizar
                             </button>
-                            <button class="btn btn-action btn-exportar" data-action="exportar">
-                                <i class="fas fa-download me-2"></i> Exportar
-                            </button>
                         </div>
                     </div>
                 </div>
