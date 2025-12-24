@@ -7,14 +7,14 @@ use Espo\Core\Exceptions\Forbidden;
 
 class CCustomerSurvey extends \Espo\Core\Controllers\Base
 {
-    // ✅ FUNCIÓN UNIFICADA: Obtener toda la información del usuario
+    
     protected function getUserFullInfo($userId)
     {
         try {
             $entityManager = $this->getContainer()->get('entityManager');
             $pdo = $entityManager->getPDO();
             
-            // ✅ CORREGIDO: Sin JOIN con email_address - basado en código funcional original
+            
             $sql = "SELECT 
                         u.id,
                         u.type,
@@ -126,7 +126,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
-    // ✅ FUNCIÓN UNIFICADA: Verificar rol
+    
     protected function hasRole($userInfo, $roleName)
     {
         if (!$userInfo || !isset($userInfo['roles'])) {
@@ -137,7 +137,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         return in_array($roleNameLower, $userInfo['roles']);
     }
 
-    // ✅ FUNCIÓN UNIFICADA CORREGIDA: Verificar permisos de visualización
+    
     protected function checkViewPermissions($userInfo, $claId = null, $oficinaId = null, $asesorId = null)
     {
         if (!$userInfo) {
@@ -154,17 +154,17 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         // Convertir roles a minúsculas para comparación
         $rolesLower = array_map('strtolower', $userRoles);
         
-        // ✅ REGLA 1: TODOS pueden ver Territorio Nacional (CLA0 o sin filtro CLA)
+        
         if ($claId === 'CLA0' || empty($claId)) {
             return true;
         }
         
-        // ✅ REGLA 2: Admin y Casa Nacional pueden ver TODO
+        
         if ($isAdmin || in_array('casa nacional', $rolesLower)) {
             return true;
         }
         
-        // ✅ REGLA 3: Roles con permisos especiales (Afiliado, Gerente, Director, Coordinador)
+        )
         $managementRoles = ['afiliado', 'gerente', 'director', 'coordinador'];
         $hasManagementRole = false;
         
@@ -192,7 +192,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             return false;
         }
         
-        // ✅ REGLA 4: Asesores Regulares (type: 'regular' y rol 'asesor')
+        
         if ($userType === 'regular' && in_array('asesor', $rolesLower)) {
             // Pueden ver su CLA
             if ($claId && $userCLA && $claId === $userCLA) {
@@ -213,7 +213,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         return false;
     }
 
-    // ✅ NUEVO ENDPOINT: Obtener información completa del usuario para frontend
+    
     public function getActionGetUserInfo($params, $data, $request)
     {
         try {
@@ -228,7 +228,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 ];
             }
             
-            // ✅ LOG para debugging
+            
             $GLOBALS['log']->info('getUserInfo - Usuario: ' . $userId . 
                                 ', Type: ' . ($userInfo['type'] ?? 'null') . 
                                 ', Oficina: ' . ($userInfo['oficinaId'] ?? 'null'));
@@ -283,7 +283,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
-    // ✅ FUNCIÓN NUEVA: Obtener CLA de un usuario
+    
     protected function getUserCLA($userId)
     {
         try {
@@ -313,7 +313,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
-    // ✅ FUNCIÓN UNIFICADA: Obtener oficina del asesor
+    
     protected function getOficinaDelAsesor($asesorId)
     {
         try {
@@ -384,7 +384,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
-    // ✅ FUNCIÓN CORREGIDA: Solo una versión de getActionGetInfoAsesor
+    
     public function getActionGetInfoAsesor($params, $data, $request)
     {
         try {
@@ -475,7 +475,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
-    // ✅ ELIMINADA la función duplicada getActionGetUserInfo (ya existe arriba)
+    
 
     public function postActionImportarEncuestas($params, $data, $request)
     {
@@ -490,7 +490,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 throw new Error("No se pudo obtener entityManager");
             }
 
-            // ✅ MODIFICACIÓN: Validar que el usuario sea tipo ADMIN
+            
             $user = $this->getContainer()->get('user');
             $userInfo = $this->getUserFullInfo($user->get('id'));
             
@@ -863,7 +863,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             // 6. Distribución de calificaciones
             $distribucionCalificaciones = $this->calcularDistribucionCalificaciones($entityManager, $whereClause);
 
-            // ✅ 7. AGREGAR: Estadísticas de contacto y recomendación
+            
             $statsContacto = $this->obtenerEstadisticasContactoRecomendacion($entityManager, $whereClause);
 
             return [
@@ -884,16 +884,16 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
+    //CORREGIDO 24-12-25
     protected function getUserIdsByTeam($entityManager, $teamId)
     {
         try {
             $pdo = $entityManager->getPDO();
             
             // Consulta SQL directa para obtener usuarios del equipo
-            $sql = "SELECT user_id FROM team_user WHERE team_id = :teamId AND deleted = 0";
+            $sql = "SELECT user_id FROM team_user WHERE team_id = ? AND deleted = 0";
             $sth = $pdo->prepare($sql);
-            $sth->bindValue(':teamId', $teamId);
-            $sth->execute();
+            $sth->execute([$teamId]); // ← CORREGIDO: Usar array
             
             $userIds = [];
             while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
@@ -910,6 +910,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
+    //CORREGIDO 24-12-25
     protected function getUserIdsByCLA($entityManager, $claId)
     {
         try {
@@ -918,12 +919,11 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             // Obtener todos los usuarios que pertenecen al CLA
             $sql = "SELECT DISTINCT user_id 
                     FROM team_user 
-                    WHERE team_id = :claId 
+                    WHERE team_id = ? 
                     AND deleted = 0";
             
             $sth = $pdo->prepare($sql);
-            $sth->bindValue(':claId', $claId);
-            $sth->execute();
+            $sth->execute([$claId]); // ← CORREGIDO: Usar array
             
             $userIds = [];
             while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
@@ -935,9 +935,9 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                     FROM team_user tu
                     INNER JOIN team t ON tu.team_id = t.id
                     WHERE tu.user_id IN (
-                        SELECT user_id FROM team_user WHERE team_id = :claId AND deleted = 0
+                        SELECT user_id FROM team_user WHERE team_id = ? AND deleted = 0
                     )
-                    AND tu.team_id != :claId
+                    AND tu.team_id != ?
                     AND t.id NOT LIKE 'CLA%'
                     AND t.id != 'venezuela'
                     AND LOWER(t.name) != 'venezuela'
@@ -945,8 +945,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                     AND t.deleted = 0";
             
             $sth2 = $pdo->prepare($sql2);
-            $sth2->bindValue(':claId', $claId);
-            $sth2->execute();
+            $sth2->execute([$claId, $claId]); // ← CORREGIDO: Usar array
             
             $oficinasIds = [];
             while ($row = $sth2->fetch(\PDO::FETCH_ASSOC)) {
@@ -1026,7 +1025,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     {
         $distribucion = ['1' => 0, '2' => 0, '3' => 0, '4' => 0, '5' => 0];
         
-        // ✅ CORRECCIÓN: Buscar por strings "1", "2", "3", "4", "5"
+        
         for ($i = 1; $i <= 5; $i++) {
             try {
                 $count = $entityManager->getRepository('CCustomerSurvey')
@@ -1369,7 +1368,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             }
         }
         
-        // Criterio 2: Mismo nombre cliente + mismo asesor + mismo tipo operación
+        
         if ($clientName && $assignedUserId && $operationType) {
             $encuesta = $entityManager->getRepository('CCustomerSurvey')
                 ->where([
@@ -1392,7 +1391,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             }
         }
         
-        // Criterio 3: Mismo email + mismo asesor (más flexible)
+        
         if ($email && $assignedUserId) {
             $encuesta = $entityManager->getRepository('CCustomerSurvey')
                 ->where([
@@ -1440,7 +1439,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 ];
             }
             
-            // ✅ SIMPLIFICADO: Verificar permisos
+            
             if (!$this->checkViewPermissions($userInfo, null, $oficinaId)) {
                 return [
                     'success' => false,
@@ -1464,8 +1463,6 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             
             $resultados = [];
             
-            // ✅ MODIFICACIÓN IMPORTANTE: ELIMINAR el filtro que excluye otros asesores
-            // Los asesores regulares PUEDEN ver todos los asesores de su oficina
             foreach ($userIds as $asesorId) {
                 try {
                     $nombre = $this->getNombreUsuario($asesorId);
@@ -1662,7 +1659,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                 ];
             }
             
-            // ✅ SIMPLIFICADO: Solo verificar permisos básicos
+            
             if ($claId === 'CLA0') {
                 // Todos pueden ver Territorio Nacional
             } elseif (!$this->checkViewPermissions($userInfo, $claId)) {
@@ -1863,6 +1860,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
+    //CORREGIDO 24-12-25
     public function getActionGetAsesoresByOficina($params, $data, $request)
     {
         try {
@@ -1883,14 +1881,13 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             $sql = "SELECT DISTINCT u.id, u.user_name, u.first_name, u.last_name 
                     FROM user u
                     INNER JOIN team_user tu ON u.id = tu.user_id
-                    WHERE tu.team_id = :oficinaId
+                    WHERE tu.team_id = ?
                     AND u.deleted = 0
                     AND u.is_active = 1
                     ORDER BY u.first_name, u.last_name, u.user_name";
             
             $sth = $pdo->prepare($sql);
-            $sth->bindValue(':oficinaId', $oficinaId);
-            $sth->execute();
+            $sth->execute([$oficinaId]); // ← CORREGIDO: Usar array
             
             $asesores = [];
             while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
@@ -1939,6 +1936,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
+    //CORREGIDO 24-12-25
     public function getActionGetInfoOficina($params, $data, $request)
     {
         try {
@@ -1955,10 +1953,10 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             $pdo = $entityManager->getPDO();
             
             // 1. Obtener nombre de la oficina
-            $sql = "SELECT name FROM team WHERE id = :oficinaId AND deleted = 0 LIMIT 1";
+            $sql = "SELECT name FROM team WHERE id = ? AND deleted = 0 LIMIT 1";
             $sth = $pdo->prepare($sql);
-            $sth->bindValue(':oficinaId', $oficinaId);
-            $sth->execute();
+            $sth->execute([$oficinaId]); // ← CORREGIDO: Usar array
+            
             $oficina = $sth->fetch(\PDO::FETCH_ASSOC);
             
             if (!$oficina) {
@@ -1981,10 +1979,10 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             }
             
             // 3. Obtener nombre del CLA
-            $sql = "SELECT name FROM team WHERE id = :claId AND deleted = 0 LIMIT 1";
+            $sql = "SELECT name FROM team WHERE id = ? AND deleted = 0 LIMIT 1";
             $sth = $pdo->prepare($sql);
-            $sth->bindValue(':claId', $claId);
-            $sth->execute();
+            $sth->execute([$claId]); // ← CORREGIDO: Usar array
+            
             $cla = $sth->fetch(\PDO::FETCH_ASSOC);
             
             $nombreCla = $cla ? $cla['name'] : '';
@@ -2010,6 +2008,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
+    //CORREGIDO 24-12-25
     protected function getCLADeOficina($entityManager, $oficinaId)
     {
         try {
@@ -2020,7 +2019,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                     FROM team_user tu1
                     INNER JOIN team_user tu2 ON tu1.user_id = tu2.user_id
                     INNER JOIN team t2 ON tu2.team_id = t2.id
-                    WHERE tu1.team_id = :oficinaId
+                    WHERE tu1.team_id = ?
                     AND t2.id LIKE 'CLA%'
                     AND tu1.deleted = 0
                     AND tu2.deleted = 0
@@ -2028,8 +2027,7 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
                     LIMIT 1";
             
             $sth = $pdo->prepare($sql);
-            $sth->bindValue(':oficinaId', $oficinaId);
-            $sth->execute();
+            $sth->execute([$oficinaId]); // ← CORREGIDO: Usar array
             
             $row = $sth->fetch(\PDO::FETCH_ASSOC);
             
@@ -2047,16 +2045,17 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
         }
     }
 
+    //CORREGIDO 24-12-25
     protected function getOficinaInfo($entityManager, $oficinaId)
     {
         try {
             $pdo = $entityManager->getPDO();
             
             // Nombre oficina
-            $sql = "SELECT name FROM team WHERE id = :oficinaId AND deleted = 0 LIMIT 1";
+            $sql = "SELECT name FROM team WHERE id = ? AND deleted = 0 LIMIT 1";
             $sth = $pdo->prepare($sql);
-            $sth->bindValue(':oficinaId', $oficinaId);
-            $sth->execute();
+            $sth->execute([$oficinaId]); // ← CORREGIDO: Usar array
+            
             $oficina = $sth->fetch(\PDO::FETCH_ASSOC);
             
             $nombreOficina = $oficina ? $oficina['name'] : '';
@@ -2066,10 +2065,10 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
             
             $nombreCla = '';
             if ($claId) {
-                $sql = "SELECT name FROM team WHERE id = :claId AND deleted = 0 LIMIT 1";
+                $sql = "SELECT name FROM team WHERE id = ? AND deleted = 0 LIMIT 1";
                 $sth = $pdo->prepare($sql);
-                $sth->bindValue(':claId', $claId);
-                $sth->execute();
+                $sth->execute([$claId]); // ← CORREGIDO: Usar array
+                
                 $cla = $sth->fetch(\PDO::FETCH_ASSOC);
                 $nombreCla = $cla ? $cla['name'] : '';
             }
@@ -2134,16 +2133,4 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Base
     }
 
     
-
-    // ✅ MÉTODOS ELIMINADOS (duplicados/redundantes):
-    // - getUserRoles()
-    // - esAdministrativo()
-    // - esCasaNacional()
-    // - esGerente()
-    // - esDirector()
-    // - esCoordinador()
-    // - esAfiliado()
-    // - esAsesorRegular()
-    // - validarPermisosVisualizacion()
-    // - getUserInfo() (ya existe como getActionGetUserInfo)
 }
