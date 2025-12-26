@@ -289,16 +289,28 @@ define("reportes-calidad-servicio:views/principal", [
             const selectCLA = this.$el.find("#cla-select");
 
             if (btnComparar.length && selectCLA.length) {
+                btnComparar.off("mouseenter mouseleave").on({
+                    mouseenter: function () {
+                        $(this).css({
+                            transform: "translateY(-2px)",
+                            boxShadow: "0 4px 12px rgba(102, 102, 102, 0.4)",
+                        });
+                    },
+                    mouseleave: function () {
+                        $(this).css({
+                            transform: "translateY(0)",
+                            boxShadow: "0 2px 8px rgba(102, 102, 102, 0.3)",
+                        });
+                    },
+                });
+
                 btnComparar.off("click").on("click", function () {
                     const claId = selectCLA.val();
-
                     if (!claId) {
                         Espo.Ui.warning("Por favor, selecciona un CLA primero");
                         return;
                     }
-
                     self.guardarFiltrosActuales();
-
                     self.getRouter().navigate("#Principal/oficinas/" + claId, {
                         trigger: true,
                     });
@@ -318,20 +330,34 @@ define("reportes-calidad-servicio:views/principal", [
                 selectOficina.length &&
                 selectCLA.length
             ) {
+                // Agregar event listeners para hover
+                btnComparar.off("mouseenter mouseleave").on({
+                    mouseenter: function () {
+                        $(this).css({
+                            transform: "translateY(-2px)",
+                            boxShadow: "0 4px 12px rgba(184, 162, 121, 0.4)",
+                        });
+                    },
+                    mouseleave: function () {
+                        $(this).css({
+                            transform: "translateY(0)",
+                            boxShadow: "0 2px 8px rgba(184, 162, 121, 0.3)",
+                        });
+                    },
+                });
+
                 btnComparar.off("click").on("click", function () {
                     const oficinaId = selectOficina.val();
-                    const claId = selectCLA.val();
-
                     if (!oficinaId) {
                         Espo.Ui.warning("Por favor, selecciona una oficina");
                         return;
                     }
-
                     self.guardarFiltrosActuales();
-
                     self.getRouter().navigate(
                         "#Principal/asesores/" + oficinaId,
-                        { trigger: true }
+                        {
+                            trigger: true,
+                        }
                     );
                 });
             }

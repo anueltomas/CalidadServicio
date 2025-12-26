@@ -43,7 +43,7 @@
                     cursor: pointer;
                     transition: all 0.3s ease;
                     box-shadow: 0 2px 8px rgba(102, 102, 102, 0.3);
-                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 102, 102, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(102, 102, 102, 0.3)';">
+                ">
                     <i class="fas fa-building"></i> Comparar Oficinas del CLA
                 </button>
 
@@ -58,7 +58,7 @@
                     cursor: pointer;
                     transition: all 0.3s ease;
                     box-shadow: 0 2px 8px rgba(184, 162, 121, 0.3);
-                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(184, 162, 121, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(184, 162, 121, 0.3)';">
+                ">
                     <i class="fas fa-chart-bar"></i> Comparar Asesores de la Oficina
                 </button>
             </div>
