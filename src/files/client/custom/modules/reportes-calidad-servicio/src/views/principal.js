@@ -353,6 +353,22 @@ define("reportes-calidad-servicio:views/principal", [
                         return;
                     }
                     self.guardarFiltrosActuales();
+
+                    // Limpiar cualquier contexto anterior
+                    sessionStorage.removeItem("contextoNavegacion");
+                    sessionStorage.removeItem("navegacion_previa");
+
+                    // Guardar que venimos desde Principal
+                    sessionStorage.setItem(
+                        "navegacion_previa",
+                        JSON.stringify({
+                            vistaAnterior: "principal",
+                            timestamp: Date.now(),
+                            oficinaId: oficinaId,
+                            claId: selectCLA.val(),
+                        })
+                    );
+
                     self.getRouter().navigate(
                         "#Principal/asesores/" + oficinaId,
                         {

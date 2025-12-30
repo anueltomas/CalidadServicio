@@ -15,12 +15,10 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
 
         var permisos = this.view.permisosManager.getPermisos();
 
+        // 1. Asesores regulares solo ven su oficina
         if (permisos.esAsesorRegular) {
             if (permisos.oficinaUsuario) {
-                this.cargarOficinaEspecifica(
-                    permisos.oficinaUsuario,
-                    oficinaSelect
-                );
+                this.cargarSoloOficinaUsuario(oficinaSelect);
             } else {
                 oficinaSelect.html(
                     '<option value="">No tienes oficina asignada</option>'
@@ -30,17 +28,181 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
             return;
         }
 
-        if (!permisos.esAdministrativo && !permisos.esCasaNacional) {
-            if (permisos.oficinaUsuario) {
-                this.cargarOficinaEspecifica(
-                    permisos.oficinaUsuario,
-                    oficinaSelect
-                );
+        // 2. Roles de gestión (gerente/director/coordinador/afiliado)
+        if (
+            permisos.esGerente ||
+            permisos.esDirector ||
+            permisos.esCoordinador ||
+            permisos.esAfiliado
+        ) {
+            // Verificar si el CLA seleccionado es el suyo
+            if (claId && claId === permisos.claUsuario) {
+                // ✅ SOLUCIÓN: Mostrar solo 2 opciones para roles de gestión
+                this.cargarOpcionesParaRolesGestion(oficinaSelect, claId);
                 return;
+            } else {
+                // Si seleccionan otro CLA, solo pueden ver su oficina
+                if (permisos.oficinaUsuario) {
+                    this.cargarSoloOficinaUsuario(oficinaSelect);
+                    return;
+                }
             }
         }
 
+        // 3. Administrativos y Casa Nacional ven todas las oficinas
+        if (permisos.esAdministrativo || permisos.esCasaNacional) {
+            this.cargarOficinasPorCLA(claId);
+            return;
+        }
+
+        // Por defecto, cargar oficinas del CLA
         this.cargarOficinasPorCLA(claId);
+    };
+
+    FiltrosOficinasManager.prototype.cargarOpcionesParaRolesGestion = function (
+        oficinaSelect,
+        claId
+    ) {
+        var permisos = this.view.permisosManager.getPermisos();
+
+        oficinaSelect.empty();
+
+        // Opción 1: Todas las oficinas
+        oficinaSelect.append(
+            '<option value="">Todas las oficinas del CLA</option>'
+        );
+
+        // Opción 2: Su oficina específica (si tiene)
+        if (permisos.oficinaUsuario) {
+            // Obtener nombre de la oficina del usuario
+            this.view.getModelFactory().create(
+                "Team",
+                function (teamModel) {
+                    teamModel.id = permisos.oficinaUsuario;
+                    teamModel
+                        .fetch()
+                        .then(
+                            function () {
+                                var nombreOficina =
+                                    teamModel.get("name") ||
+                                    permisos.oficinaUsuario;
+
+                                // Agregar la opción de su oficina
+                                oficinaSelect.append(
+                                    '<option value="' +
+                                        permisos.oficinaUsuario +
+                                        '">' +
+                                        nombreOficina +
+                                        " (Mi oficina)</option>"
+                                );
+
+                                // ✅ Establecer "Todas las oficinas" como seleccionada por defecto
+                                oficinaSelect.val("");
+                                oficinaSelect.prop("disabled", false);
+
+                                // Actualizar filtros
+                                if (this.view.filtrosCLAManager) {
+                                    this.view.filtrosCLAManager.filtros.oficina =
+                                        null;
+                                    this.view.filtrosCLAManager.filtros.mostrarTodas = false;
+                                }
+
+                                // Cargar asesores (si es su oficina)
+                                if (this.view.filtrosAsesoresManager) {
+                                    this.view.filtrosAsesoresManager.loadAsesores(
+                                        permisos.oficinaUsuario
+                                    );
+                                }
+
+                                // Cargar estadísticas
+                                if (this.view.estadisticasManager) {
+                                    setTimeout(
+                                        function () {
+                                            this.view.estadisticasManager.loadStatistics();
+                                        }.bind(this),
+                                        100
+                                    );
+                                }
+                            }.bind(this)
+                        )
+                        .catch(
+                            function (error) {
+                                // Si falla, mostrar solo el ID
+                                oficinaSelect.append(
+                                    '<option value="' +
+                                        permisos.oficinaUsuario +
+                                        '">Oficina ' +
+                                        permisos.oficinaUsuario +
+                                        " (Mi oficina)</option>"
+                                );
+                                oficinaSelect.val("");
+                                oficinaSelect.prop("disabled", false);
+                            }.bind(this)
+                        );
+                }.bind(this)
+            );
+        } else {
+            // Si no tiene oficina, solo mostrar "Todas las oficinas"
+            oficinaSelect.val("");
+            oficinaSelect.prop("disabled", false);
+        }
+    };
+
+    // ✅ NUEVO MÉTODO: Cargar solo la oficina del usuario
+    FiltrosOficinasManager.prototype.cargarSoloOficinaUsuario = function (
+        oficinaSelect
+    ) {
+        var permisos = this.view.permisosManager.getPermisos();
+
+        this.view.getModelFactory().create(
+            "Team",
+            function (teamModel) {
+                teamModel.id = permisos.oficinaUsuario;
+                teamModel
+                    .fetch()
+                    .then(
+                        function () {
+                            var nombreOficina =
+                                teamModel.get("name") ||
+                                permisos.oficinaUsuario;
+
+                            oficinaSelect.empty();
+                            oficinaSelect.append(
+                                '<option value="' +
+                                    permisos.oficinaUsuario +
+                                    '">' +
+                                    nombreOficina +
+                                    " (Mi oficina)</option>"
+                            );
+
+                            oficinaSelect.val(permisos.oficinaUsuario);
+                            oficinaSelect.prop("disabled", false);
+
+                            // Actualizar filtros
+                            if (this.view.filtrosCLAManager) {
+                                this.view.filtrosCLAManager.filtros.oficina =
+                                    permisos.oficinaUsuario;
+                                this.view.filtrosCLAManager.filtros.mostrarTodas = false;
+                            }
+
+                            // Cargar asesores
+                            if (this.view.filtrosAsesoresManager) {
+                                this.view.filtrosAsesoresManager.loadAsesores(
+                                    permisos.oficinaUsuario
+                                );
+                            }
+                        }.bind(this)
+                    )
+                    .catch(
+                        function (error) {
+                            oficinaSelect.html(
+                                '<option value="">Error al cargar oficina</option>'
+                            );
+                            oficinaSelect.prop("disabled", true);
+                        }.bind(this)
+                    );
+            }.bind(this)
+        );
     };
 
     FiltrosOficinasManager.prototype.cargarOficinasPorCLA = function (claId) {
@@ -330,15 +492,19 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                         "#btn-comparar-oficinas"
                     );
 
+                    var permisos = this.view.permisosManager.getPermisos();
+
+                    // ✅ Mostrar botón de comparación solo si selecciona SU oficina
                     if (
                         oficinaId &&
+                        oficinaId !== "" &&
                         claSeleccionado !== "CLA0" &&
-                        claSeleccionado !== ""
+                        claSeleccionado !== "" &&
+                        (permisos.esAdministrativo ||
+                            permisos.esCasaNacional ||
+                            oficinaId === permisos.oficinaUsuario)
                     ) {
                         btnComparacionAsesores
-                            .show()
-                            .css("display", "inline-flex");
-                        btnComparacionOficinas
                             .show()
                             .css("display", "inline-flex");
                     } else {
@@ -352,7 +518,10 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                         this.view.filtrosCLAManager.filtros.oficina =
                             oficinaId || null;
                         this.view.filtrosCLAManager.filtros.asesor = null;
-                        this.view.filtrosCLAManager.filtros.mostrarTodas = false;
+
+                        // ✅ Si selecciona "Todas las oficinas" (valor vacío), mostrar estadísticas consolidadas
+                        this.view.filtrosCLAManager.filtros.mostrarTodas =
+                            !oficinaId;
 
                         if (oficinaId && this.view.filtrosAsesoresManager) {
                             this.view.filtrosAsesoresManager.loadAsesores(
@@ -362,11 +531,8 @@ define("reportes-calidad-servicio:views/modules/filtros-oficinas", [], function 
                             this.view.filtrosAsesoresManager.limpiarFiltros();
                         }
 
-                        var permisos = this.view.permisosManager.getPermisos();
-                        if (
-                            !permisos.esAsesorRegular &&
-                            this.view.estadisticasManager
-                        ) {
+                        // ✅ Cargar estadísticas según la selección
+                        if (this.view.estadisticasManager) {
                             this.view.estadisticasManager.loadStatistics();
                         }
                     }

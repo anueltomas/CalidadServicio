@@ -839,17 +839,84 @@ define("reportes-calidad-servicio:views/oficinas", ["view"], function (Dep) {
 
             const nombreOficina = oficina.nombre || "esta oficina";
 
-            try {
-                const confirmacion = window.confirm(
-                    `¿Deseas ver la comparación de asesores de "${nombreOficina}"?`
-                );
+            // ✅ Obtener información del usuario actual
+            const user = this.getUser();
+            const userId = user.get("id");
 
-                if (confirmacion) {
-                    this.irAVistaAsesores(oficinaId);
-                }
-            } catch (error) {
-                this.irAVistaAsesores(oficinaId);
-            }
+            // Obtener permisos del usuario
+            Espo.Ajax.getRequest("CCustomerSurvey/action/getUserInfo", {
+                userId: userId,
+            })
+                .then((response) => {
+                    if (response.success && response.data) {
+                        const userInfo = response.data;
+                        let puedeAcceder = false;
+                        let mensaje = "";
+
+                        // Verificar permisos
+                        if (
+                            userInfo.esAdministrativo ||
+                            userInfo.esCasaNacional
+                        ) {
+                            puedeAcceder = true;
+                            mensaje = `¿Deseas ver la comparación de asesores de "${nombreOficina}"?`;
+                        }
+                        // Usuario con roles de gestión
+                        else if (
+                            userInfo.esGerente ||
+                            userInfo.esDirector ||
+                            userInfo.esCoordinador ||
+                            userInfo.esAfiliado
+                        ) {
+                            // ✅ Solo puede acceder a SU oficina
+                            puedeAcceder =
+                                oficinaId === userInfo.oficinaUsuario;
+
+                            if (puedeAcceder) {
+                                mensaje = `¿Deseas ver la comparación de asesores de "${nombreOficina}" (tu oficina)?`;
+                            } else {
+                                mensaje = `Solo puedes acceder a la comparación de asesores de tu oficina asignada.\n\nHas hecho clic en: ${nombreOficina}`;
+                            }
+                        }
+                        // Asesor regular
+                        else if (userInfo.esAsesorRegular) {
+                            puedeAcceder =
+                                oficinaId === userInfo.oficinaUsuario;
+
+                            if (puedeAcceder) {
+                                mensaje = `¿Deseas ver tus estadísticas personales en "${nombreOficina}"?`;
+                            } else {
+                                mensaje = `Solo puedes ver las estadísticas de tu propia oficina.`;
+                            }
+                        }
+
+                        if (puedeAcceder) {
+                            const confirmacion = window.confirm(mensaje);
+                            if (confirmacion) {
+                                this.irAVistaAsesores(oficinaId);
+                            }
+                        } else {
+                            Espo.Ui.warning(mensaje);
+                        }
+                    } else {
+                        // Si no se pueden obtener permisos, preguntar
+                        const confirmacion = window.confirm(
+                            `¿Deseas ver la comparación de asesores de "${nombreOficina}"?`
+                        );
+                        if (confirmacion) {
+                            this.irAVistaAsesores(oficinaId);
+                        }
+                    }
+                })
+                .catch((error) => {
+                    // Si hay error, proceder con confirmación normal
+                    const confirmacion = window.confirm(
+                        `¿Deseas ver la comparación de asesores de "${nombreOficina}"?`
+                    );
+                    if (confirmacion) {
+                        this.irAVistaAsesores(oficinaId);
+                    }
+                });
         },
 
         irAVistaAsesores: function (oficinaId) {

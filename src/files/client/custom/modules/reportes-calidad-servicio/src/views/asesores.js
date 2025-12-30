@@ -327,6 +327,46 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
 
         volverAVistaAnterior: function () {
             try {
+                // 1. Verificar navegacion_previa
+                const navegacionPrevia =
+                    sessionStorage.getItem("navegacion_previa");
+                if (navegacionPrevia) {
+                    try {
+                        const datos = JSON.parse(navegacionPrevia);
+
+                        // Si venimos desde oficinas
+                        if (datos.vistaAnterior === "oficinas" && datos.claId) {
+                            if (this.getRouter()) {
+                                this.getRouter().navigate(
+                                    `#Principal/oficinas/${datos.claId}`,
+                                    { trigger: true }
+                                );
+                            } else {
+                                window.location.hash = `#Principal/oficinas/${datos.claId}`;
+                            }
+                            return;
+                        }
+
+                        // Si venimos desde principal
+                        if (datos.vistaAnterior === "principal") {
+                            if (this.getRouter()) {
+                                this.getRouter().navigate("#Principal", {
+                                    trigger: true,
+                                });
+                            } else {
+                                window.location.hash = "#Principal";
+                            }
+                            return;
+                        }
+                    } catch (error) {
+                        console.error(
+                            "Error parseando navegacion_previa:",
+                            error
+                        );
+                    }
+                }
+
+                // 2. Intentar con contexto de navegación
                 if (this.contextoNavegacion) {
                     if (
                         this.contextoNavegacion.desde ===
@@ -340,37 +380,14 @@ define("reportes-calidad-servicio:views/asesores", ["view"], function (Dep) {
                                 `#Principal/oficinas/${this.contextoNavegacion.claId}`,
                                 { trigger: true }
                             );
+                        } else {
+                            window.location.hash = `#Principal/oficinas/${this.contextoNavegacion.claId}`;
                         }
                         return;
                     }
                 }
 
-                if (this.options.previousRoute) {
-                    if (this.getRouter()) {
-                        this.getRouter().navigate(this.options.previousRoute, {
-                            trigger: true,
-                        });
-                    }
-                    return;
-                }
-
-                const navegacionPrevia =
-                    sessionStorage.getItem("navegacion_previa");
-                if (navegacionPrevia) {
-                    try {
-                        const datos = JSON.parse(navegacionPrevia);
-                        if (datos.vistaAnterior === "oficinas" && datos.claId) {
-                            if (this.getRouter()) {
-                                this.getRouter().navigate(
-                                    `#Principal/oficinas/${datos.claId}`,
-                                    { trigger: true }
-                                );
-                            }
-                            return;
-                        }
-                    } catch (error) {}
-                }
-
+                // 3. Por defecto, volver a Principal
                 if (this.getRouter()) {
                     this.getRouter().navigate("#Principal", { trigger: true });
                 } else {
