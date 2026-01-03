@@ -200,14 +200,20 @@ define("reportes-calidad-servicio:views/modules/estadisticas", [], function () {
                 asesorNombre +
                 "</span>";
         } else if (filtros.oficina) {
+            var oficinaSelect = this.view.$el.find("#oficina-select");
+            var nombreOficina =
+                oficinaSelect.find("option:selected").text() || filtros.oficina;
             tituloFiltro =
                 '<span class="badge badge-success" style="font-size: clamp(0.75rem, 2vw, 0.9rem); padding: 6px 12px;">🏪 ' +
-                filtros.oficina +
+                nombreOficina +
                 "</span>";
         } else if (filtros.cla) {
+            var claSelect = this.view.$el.find("#cla-select");
+            var nombreCLA =
+                claSelect.find("option:selected").text() || filtros.cla;
             tituloFiltro =
                 '<span class="badge badge-info" style="font-size: clamp(0.75rem, 2vw, 0.9rem); padding: 6px 12px;">🏢 ' +
-                filtros.cla +
+                nombreCLA +
                 "</span>";
         }
 

@@ -773,57 +773,30 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Record
         try {
             $pdo = $entityManager->getPDO();
             
-            // Obtener todos los usuarios que pertenecen al CLA
+            // Obtener usuarios directos del CLA
             $sql = "SELECT DISTINCT user_id 
                     FROM team_user 
-                    WHERE team_id = ? 
+                    WHERE team_id = :claId 
                     AND deleted = 0";
             
             $sth = $pdo->prepare($sql);
-            $sth->execute([$claId]);
+            $sth->bindValue(':claId', $claId);
+            $sth->execute();
             
             $userIds = [];
             while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
                 $userIds[] = $row['user_id'];
             }
             
-            // Obtener las oficinas de estos usuarios (teams que NO son CLAs y NO es venezuela)
-            $sql2 = "SELECT DISTINCT tu.team_id, t.name
-                    FROM team_user tu
-                    INNER JOIN team t ON tu.team_id = t.id
-                    WHERE tu.user_id IN (
-                        SELECT user_id FROM team_user WHERE team_id = ? AND deleted = 0
-                    )
-                    AND tu.team_id != ?
-                    AND t.id NOT LIKE 'CLA%'
-                    AND t.id != 'venezuela'
-                    AND LOWER(t.name) != 'venezuela'
-                    AND tu.deleted = 0
-                    AND t.deleted = 0";
-            
-            $sth2 = $pdo->prepare($sql2);
-            $sth2->execute([$claId, $claId]);
-            
-            $oficinasIds = [];
-            while ($row = $sth2->fetch(\PDO::FETCH_ASSOC)) {
-                // ✅ DOBLE VERIFICACIÓN: Excluir venezuela
-                if (strtolower($row['team_id']) !== 'venezuela' && strtolower($row['name']) !== 'venezuela') {
-                    $oficinasIds[] = $row['team_id'];
-                }
-            }
-            
-            // Obtener usuarios de todas las oficinas encontradas
-            foreach ($oficinasIds as $oficinaId) {
-                $oficinaUsers = $this->getUserIdsByTeam($entityManager, $oficinaId);
-                $userIds = array_merge($userIds, $oficinaUsers);
-            }
-            
-            // ✅ CORRECCIÓN: Eliminar duplicados y reindexar
+            // Eliminar duplicados y reindexar
             $userIds = array_values(array_unique($userIds));
+            
+            $GLOBALS['log']->debug("getUserIdsByCLA - Total usuarios únicos del CLA {$claId}: " . count($userIds));
             
             return $userIds;
             
         } catch (\Exception $e) {
+            $GLOBALS['log']->error("❌ Error en getUserIdsByCLA: " . $e->getMessage());
             return [];
         }
     }
@@ -1763,13 +1736,14 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Record
             
             $entityManager = $this->getContainer()->get('entityManager');
             
-            // ✅ Obtener usuario actual para validar permisos
+            // Obtener usuario actual para validar permisos
             $user = $this->getContainer()->get('user');
             $userId = $user->get('id');
             $userInfo = $this->getUserFullInfo($userId);
             
-            // ✅ Validar permisos del usuario para ver este CLA
+            // Validar permisos del usuario para ver este CLA
             if (!$this->checkViewPermissions($userInfo, $claId)) {
+                $GLOBALS['log']->warning("🚫 Usuario sin permisos para ver oficinas del CLA: " . $claId);
                 return [
                     'success' => false,
                     'error' => 'No tiene permisos para ver oficinas de este CLA',
@@ -1777,15 +1751,17 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Record
                 ];
             }
             
-            // ✅ CORRECCIÓN: Usar método optimizado que ya filtra oficinas válidas
+            // Usar método corregido con la lógica de evaluacion-general.js
             $oficinas = $this->getOficinasByCLA($entityManager, $claId);
             
             return [
                 'success' => true,
-                'data' => $oficinas
+                'data' => $oficinas,
+                'total' => count($oficinas)
             ];
             
         } catch (\Exception $e) {
+            $GLOBALS['log']->error('❌ Error en getActionGetOficinasByCLA: ' . $e->getMessage());
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -2080,46 +2056,95 @@ class CCustomerSurvey extends \Espo\Core\Controllers\Record
     protected function getOficinasByCLA($entityManager, $claId)
     {
         try {
-            // Obtener usuarios del CLA
-            $userIds = $this->getUserIdsByCLA($entityManager, $claId);
+            $pdo = $entityManager->getPDO();
             
-            if (empty($userIds)) {
+            $GLOBALS['log']->info("🔍 getOficinasByCLA iniciado para CLA: " . $claId);
+            
+            // PASO 1: Obtener todos los usuarios que pertenecen al CLA
+            // Equivalente a: fetchUsuariosPorCLA(claId)
+            $sqlUsuarios = "SELECT DISTINCT user_id 
+                            FROM team_user 
+                            WHERE team_id = :claId 
+                            AND deleted = 0";
+            
+            $sthUsuarios = $pdo->prepare($sqlUsuarios);
+            $sthUsuarios->bindValue(':claId', $claId);
+            $sthUsuarios->execute();
+            
+            $usuariosDelCLA = [];
+            while ($row = $sthUsuarios->fetch(\PDO::FETCH_ASSOC)) {
+                $usuariosDelCLA[] = $row['user_id'];
+            }
+            
+            $GLOBALS['log']->info("👥 Usuarios encontrados en CLA {$claId}: " . count($usuariosDelCLA));
+            
+            if (empty($usuariosDelCLA)) {
+                $GLOBALS['log']->warning("⚠️ No se encontraron usuarios para CLA: " . $claId);
                 return [];
             }
             
-            // ✅ CORRECCIÓN CRÍTICA: Reindexar el array para índices consecutivos
-            $userIds = array_values($userIds);
+            // PASO 2: De esos usuarios, obtener TODOS sus teams
+            // Equivalente a: var teamsIds = usuario.teamsIds || [];
+            $placeholders = implode(',', array_fill(0, count($usuariosDelCLA), '?'));
             
-            $pdo = $entityManager->getPDO();
+            $sqlTeams = "SELECT DISTINCT tu.team_id, t.name, t.id
+                        FROM team_user tu
+                        INNER JOIN team t ON tu.team_id = t.id
+                        WHERE tu.user_id IN ($placeholders)
+                        AND tu.deleted = 0
+                        AND t.deleted = 0";
             
-            // ✅ CORRECCIÓN: Verificar que hay userIds antes de crear placeholders
-            $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+            $sthTeams = $pdo->prepare($sqlTeams);
+            $sthTeams->execute($usuariosDelCLA);
             
-            $sql = "SELECT DISTINCT t.id, t.name 
-                    FROM team t
-                    INNER JOIN team_user tu ON t.id = tu.team_id
-                    WHERE tu.user_id IN ($placeholders)
-                    AND t.id NOT LIKE 'CLA%'
-                    AND t.id != 'venezuela'
-                    AND LOWER(t.name) != 'venezuela'
-                    AND tu.deleted = 0
-                    AND t.deleted = 0
-                    ORDER BY t.name";
+            $oficinasSet = [];
+            $claPattern = '/^CLA\d+$/i';
             
-            $sth = $pdo->prepare($sql);
-            $sth->execute($userIds);
+            // PASO 3: Filtrar solo los teams que NO son CLAs y NO son "venezuela"
+            // Equivalente a: if (!claPattern.test(teamId) && teamId.toLowerCase() !== 'venezuela')
+            while ($row = $sthTeams->fetch(\PDO::FETCH_ASSOC)) {
+                $teamId = $row['team_id'];
+                $teamName = strtolower($row['name'] ?? '');
+                $teamIdLower = strtolower($teamId);
+                
+                // Verificar que NO sea un CLA
+                $esCLA = preg_match($claPattern, $teamId);
+                
+                // Verificar que NO sea venezuela (ni por ID ni por nombre)
+                $esVenezuela = ($teamIdLower === 'venezuela' || $teamName === 'venezuela');
+                
+                // Solo agregar si NO es CLA y NO es Venezuela
+                if (!$esCLA && !$esVenezuela) {
+                    // Evitar duplicados usando el ID como clave
+                    if (!isset($oficinasSet[$teamId])) {
+                        $oficinasSet[$teamId] = [
+                            'id' => $row['id'],
+                            'name' => $row['name']
+                        ];
+                    }
+                }
+            }
             
-            $oficinas = [];
-            while ($row = $sth->fetch(\PDO::FETCH_ASSOC)) {
-                $oficinas[] = [
-                    'id' => $row['id'],
-                    'name' => $row['name']
-                ];
+            // Convertir el set a array indexado
+            $oficinas = array_values($oficinasSet);
+            
+            // Ordenar por nombre
+            usort($oficinas, function($a, $b) {
+                return strcmp($a['name'], $b['name']);
+            });
+            
+            $GLOBALS['log']->info("✅ Oficinas encontradas para CLA {$claId}: " . count($oficinas));
+            
+            if (count($oficinas) > 0) {
+                $nombresOficinas = array_map(function($o) { return $o['name']; }, array_slice($oficinas, 0, 5));
+                $GLOBALS['log']->debug("📋 Primeras oficinas: " . implode(', ', $nombresOficinas));
             }
             
             return $oficinas;
             
         } catch (\Exception $e) {
+            $GLOBALS['log']->error('❌ Error en getOficinasByCLA: ' . $e->getMessage());
+            $GLOBALS['log']->error('Stack trace: ' . $e->getTraceAsString());
             return [];
         }
     }
